@@ -73,5 +73,4 @@ pub struct SearchResponse {
     pub results: Vec<SearchResult>,
     pub semantic_status: String,
     pub semantic_message: Option<String>,
-    pub indexed_entities: usize,
 }

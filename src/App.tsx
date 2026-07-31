@@ -17,13 +17,11 @@ type SearchResponse = {
   results: SearchResult[];
   semanticStatus: "warming" | "ready" | "unavailable";
   semanticMessage?: string;
-  indexedEntities: number;
 };
 
 const EMPTY_RESPONSE: SearchResponse = {
   results: [],
   semanticStatus: "warming",
-  indexedEntities: 0,
 };
 
 function ResultIcon({ kind, title }: { kind: ResultKind; title: string }) {
@@ -44,7 +42,7 @@ function ResultIcon({ kind, title }: { kind: ResultKind; title: string }) {
 function semanticLabel(status: SearchResponse["semanticStatus"]) {
   if (status === "ready") return "Semantic ready";
   if (status === "unavailable") return "Keyword mode";
-  return "Preparing semantics";
+  return "Preparing index";
 }
 
 export default function App() {
@@ -160,13 +158,6 @@ export default function App() {
 
         <div className="results-heading">
           <span>{query ? "Best matches" : "Apps & actions"}</span>
-          <span
-            className={`semantic-status ${response.semanticStatus}`}
-            title={response.semanticMessage}
-          >
-            <span className="status-dot" />
-            {semanticLabel(response.semanticStatus)}
-          </span>
         </div>
 
         <div className="results" aria-label="Search results">
@@ -207,9 +198,12 @@ export default function App() {
         </div>
 
         <footer>
-          <span className="privacy-note">
-            <span className="lock">◆</span>
-            Local only · {response.indexedEntities} apps & actions
+          <span
+            className={`semantic-status footer-status ${response.semanticStatus}`}
+            title={response.semanticMessage}
+          >
+            <span className="status-dot" />
+            {semanticLabel(response.semanticStatus)}
           </span>
           <span className="key-hints">
             <kbd>↑</kbd><kbd>↓</kbd> Navigate <kbd>↵</kbd> Open <kbd>esc</kbd> Close

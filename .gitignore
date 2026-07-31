@@ -1,5 +1,6 @@
 node_modules/
 dist/
+apps/web/dist/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/.fastembed_cache/

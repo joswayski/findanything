@@ -1,37 +1,32 @@
 # Find Anything
 
-Find Anything is a local-first desktop launcher that ranks applications, system actions, and filenames together. It combines exact and fuzzy text matching, a small on-device embedding model, and preferences learned from what you open.
+Find Anything is a local-first desktop launcher for finding applications, system settings, and files.
 
-The first vertical slice targets macOS while keeping discovery and launching behind a portable Rust boundary for Windows and Linux implementations.
+[findanyth.ing](https://findanyth.ing)
 
-## MVP behavior
+> [!WARNING]
+> Find Anything is experimental and under active development. macOS is the primary development target.
 
-- `brightness` surfaces **Displays**, even though the query is not its title.
-- Installed application metadata is indexed, including background/menu-bar apps such as Numi.
-- Choosing **Numi** for `calculator` teaches that exact query and boosts Numi on the next search.
-- Filename matches are included without outranking strong app or system-action matches.
-- Search, embeddings, and usage history stay on the device. If the embedding model is unavailable, lexical search and learned preferences continue working.
-- <kbd>⌘/Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> toggles the launcher.
+## Features
 
-The semantic model is downloaded and cached by `fastembed` on first use. Production packaging will bundle the model so a fresh install is offline from its first launch.
+- Search installed applications, including menu-bar and background apps.
+- Open system settings with natural queries such as `brightness` or `dark mode`.
+- Learn which result you prefer for a query from what you open.
+- Combine exact, typo-tolerant, and on-device semantic matching.
+- Search personal filenames without prioritizing system and build artifacts.
+- Keep search and usage history on your computer.
+
+## Roadmap
+
+- Windows and Linux application discovery and system actions.
+- Search inside documents with local embeddings and OCR.
+- Search photos by their contents.
+- Optional private sync across computers.
 
 ## Development
 
-Requirements: current Node.js/npm, Rust, and the platform prerequisites for Tauri 2.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, validation, and website deployment.
 
-```sh
-npm install
-npm run tauri dev
-```
+## License
 
-Checks:
-
-```sh
-npm run check
-npm run build
-cargo test --manifest-path src-tauri/Cargo.toml
-```
-
-## Deliberately outside this MVP
-
-Document contents, OCR, photo understanding, cross-device sync, third-party plugins, and cloud inference. Those can build on the same entity/index/ranker boundary after the launcher loop is fast and trustworthy.
+Licensed under the [Apache License 2.0](LICENSE).

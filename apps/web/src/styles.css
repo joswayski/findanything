@@ -1,0 +1,247 @@
+:root {
+  color: #25221e;
+  background: #fafaf8;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(ellipse 78% 44% at 50% -16%, rgba(235, 158, 35, 0.12), transparent 62%),
+    #fafaf8;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  color: #211d17;
+  background: rgba(235, 158, 35, 0.24);
+}
+
+.site-shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.site-main {
+  width: 100%;
+  max-width: 768px;
+  flex: 1;
+  margin: 0 auto;
+  padding: 80px 24px;
+}
+
+.hero {
+  padding: 32px 0 48px;
+}
+
+.status-pill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid rgba(194, 120, 10, 0.2);
+  border-radius: 999px;
+  color: #925b08;
+  background: rgba(235, 158, 35, 0.08);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-pill span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e79920;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.brand-row h1 {
+  margin: 0;
+  color: #25221e;
+  font-size: clamp(2.5rem, 8vw, 3.25rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.brand-symbol {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 13px;
+  color: #33210a;
+  background: linear-gradient(145deg, #ffc84c, #e9831c);
+  box-shadow: 0 9px 25px rgba(204, 117, 15, 0.22);
+}
+
+.brand-symbol svg {
+  width: 27px;
+  height: 27px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.brand-symbol .search-spark {
+  stroke-width: 1.55;
+}
+
+.tagline {
+  max-width: 570px;
+  margin: 19px 0 0;
+  color: #69635b;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.tagline a {
+  color: #302c27;
+  font-weight: 550;
+  text-decoration: none;
+  text-underline-offset: 3px;
+  transition: color 180ms ease, text-decoration-color 180ms ease;
+}
+
+.tagline a:hover {
+  color: #a75f0d;
+  text-decoration: underline;
+}
+
+.github-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 31px;
+  padding: 11px 16px;
+  border-radius: 8px;
+  color: #33210a;
+  background: #f0a229;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.github-button:hover {
+  background: #f6b13e;
+  transform: translateY(-1px);
+}
+
+.github-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.recent {
+  margin-top: 32px;
+  padding-top: 42px;
+  border-top: 1px solid #e4e0d9;
+}
+
+.recent h2 {
+  margin: 0;
+  color: #2a2722;
+  font-size: 24px;
+  font-weight: 630;
+  letter-spacing: -0.025em;
+}
+
+.timeline {
+  margin: 29px 0 0 6px;
+  padding: 0;
+  border-left: 1px solid #ddd7ce;
+  list-style: none;
+}
+
+.timeline li {
+  position: relative;
+  padding: 0 0 29px 29px;
+}
+
+.timeline li:last-child {
+  padding-bottom: 0;
+}
+
+.timeline-dot {
+  position: absolute;
+  top: 6px;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fafaf8;
+  border-radius: 50%;
+  background: #e79920;
+  box-shadow: 0 0 0 1px rgba(194, 120, 10, 0.26);
+}
+
+.timeline a {
+  color: #302c27;
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1.45;
+  text-decoration: none;
+  text-underline-offset: 4px;
+  transition: color 220ms ease;
+}
+
+.timeline a:hover {
+  color: #a75f0d;
+  text-decoration: underline;
+}
+
+.timeline p {
+  margin: 7px 0 0;
+  color: #938b80;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .site-main {
+    padding: 48px 20px 64px;
+  }
+
+  .hero {
+    padding-top: 24px;
+  }
+
+  .brand-symbol {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+
+  .brand-symbol svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .tagline {
+    font-size: 15px;
+  }
+}

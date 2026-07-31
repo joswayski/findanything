@@ -99,7 +99,6 @@ impl SearchEngine {
             results: ranked,
             semantic_status,
             semantic_message,
-            indexed_entities: self.entities.len(),
         }
     }
 

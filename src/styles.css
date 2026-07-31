@@ -106,7 +106,6 @@ button {
 .results-heading {
   display: flex;
   align-items: end;
-  justify-content: space-between;
   padding: 0 24px 8px;
   color: rgba(255, 255, 255, 0.41);
   font-size: 12px;
@@ -118,10 +117,9 @@ button {
 .semantic-status {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: 500;
 }
 
 .status-dot {
@@ -299,16 +297,14 @@ footer {
   font-size: 10px;
 }
 
-.privacy-note,
 .key-hints {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.lock {
-  color: #ffc94c;
-  font-size: 7px;
+.footer-status {
+  color: rgba(255, 255, 255, 0.29);
 }
 
 kbd {
@@ -340,8 +336,8 @@ kbd {
   .search-row input { color: rgba(0, 0, 0, 0.9); }
   .search-row input::placeholder { color: rgba(0, 0, 0, 0.28); }
   .results-heading,
-  .semantic-status,
   footer { color: rgba(0, 0, 0, 0.4); }
+  .footer-status { color: rgba(0, 0, 0, 0.36); }
   .result.selected { background: rgba(0, 0, 0, 0.065); }
   .result-title { color: rgba(0, 0, 0, 0.88); }
   .result-subtitle { color: rgba(0, 0, 0, 0.4); }
