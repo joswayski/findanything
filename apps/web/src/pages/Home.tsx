@@ -17,6 +17,20 @@ export default function Home() {
 
   return (
     <div className="site-shell">
+      <header className="site-header">
+        <a className="wordmark" href="/" aria-label="Find Anything home">
+          <span className="wordmark-symbol" aria-hidden="true">
+            <FindAnythingIcon />
+          </span>
+          <span>Find Anything</span>
+        </a>
+
+        <a className="header-link" href={REPO_URL} target="_blank" rel="noreferrer">
+          <GitHubIcon />
+          <span>GitHub</span>
+        </a>
+      </header>
+
       <main className="site-main">
         <section className="hero">
           <p className="status-pill">
@@ -24,44 +38,93 @@ export default function Home() {
             Work in progress
           </p>
 
-          <div className="brand-row">
-            <span className="brand-symbol" aria-hidden="true">
-              <FindAnythingIcon />
-            </span>
-            <h1>Find Anything</h1>
-          </div>
+          <h1>
+            Find anything.
+            <span>Right on your computer.</span>
+          </h1>
 
           <p className="tagline">
-            A fast, local-first desktop launcher for finding apps, settings, and files. Built by{" "}
-            <a href={CREATOR_URL}>Jose Valerio</a>.
+            A fast, local-first launcher that understands what you mean, remembers what you choose,
+            and stays out of your way.
           </p>
 
-          <a className="github-button" href={REPO_URL} target="_blank" rel="noreferrer">
-            <GitHubIcon />
-            View on GitHub
-          </a>
+          <div className="hero-actions">
+            <a className="primary-button" href={REPO_URL} target="_blank" rel="noreferrer">
+              View on GitHub
+              <ArrowIcon />
+            </a>
+            <a className="creator-link" href={CREATOR_URL}>
+              Built by Jose Valerio
+            </a>
+          </div>
+
+          <div className="launcher-preview" aria-label="Find Anything launcher preview">
+            <div className="preview-search">
+              <FindAnythingIcon />
+              <span className="preview-query">brightness</span>
+              <span className="preview-shortcut">⌘ ⇧ Space</span>
+            </div>
+
+            <div className="preview-content">
+              <p className="preview-label">Best match</p>
+              <div className="preview-result">
+                <span className="preview-result-icon" aria-hidden="true">
+                  <DisplayIcon />
+                </span>
+                <span className="preview-result-copy">
+                  <strong>Displays</strong>
+                  <span>System Settings</span>
+                </span>
+                <span className="preview-open">
+                  Open <kbd>↵</kbd>
+                </span>
+              </div>
+            </div>
+
+            <div className="preview-footer">
+              <span className="preview-status">
+                <span aria-hidden="true" />
+                Semantic ready
+              </span>
+              <span>On-device search</span>
+            </div>
+          </div>
         </section>
 
         <section className="recent" aria-labelledby="recent-heading">
-          <h2 id="recent-heading">{__RECENT_SECTION_TITLE__}</h2>
+          <div className="recent-heading">
+            <p>Project activity</p>
+            <h2 id="recent-heading">{__RECENT_SECTION_TITLE__}</h2>
+          </div>
 
-          <ol className="timeline">
+          <ol className="activity-list">
             {__RECENT_ITEMS__.map((item) => (
               <li key={item.key}>
-                <span className="timeline-dot" aria-hidden="true" />
-                <a href={item.url} target="_blank" rel="noreferrer">
-                  {item.title}
+                <a className="activity-item" href={item.url} target="_blank" rel="noreferrer">
+                  <span className="activity-copy">
+                    <strong>{item.title}</strong>
+                    <span>
+                      <time dateTime={item.occurredAt}>
+                        {formatRelativeTime(item.occurredAt, now)}
+                      </time>
+                      <span aria-hidden="true"> · </span>
+                      {item.detail}
+                    </span>
+                  </span>
+                  <ArrowUpRightIcon />
                 </a>
-                <p>
-                  <time dateTime={item.occurredAt}>{formatRelativeTime(item.occurredAt, now)}</time>
-                  <span aria-hidden="true"> · </span>
-                  {item.detail}
-                </p>
               </li>
             ))}
           </ol>
         </section>
       </main>
+
+      <footer className="site-footer">
+        <span>Find Anything</span>
+        <span>
+          A local-first launcher by <a href={CREATOR_URL}>Jose Valerio</a>.
+        </span>
+      </footer>
     </div>
   );
 }
@@ -95,6 +158,31 @@ function FindAnythingIcon() {
       <circle cx="10.5" cy="10.5" r="5.75" />
       <path d="m14.8 14.8 4.45 4.45" />
       <path className="search-spark" d="M18.25 4.25v3.5M16.5 6h3.5" />
+    </svg>
+  );
+}
+
+function DisplayIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <rect x="3.5" y="4.5" width="17" height="12" rx="2.25" />
+      <path d="M9 20h6M12 16.5V20" />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true">
+      <path d="M4.5 10h11M11.5 6l4 4-4 4" />
+    </svg>
+  );
+}
+
+function ArrowUpRightIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true">
+      <path d="M6 14 14 6M7 6h7v7" />
     </svg>
   );
 }
