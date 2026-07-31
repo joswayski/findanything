@@ -1,0 +1,26 @@
+[package]
+name = "findanything"
+version = "0.1.0"
+description = "A fast, private launcher that understands what you mean"
+authors = ["Jose Valerio"]
+edition = "2024"
+rust-version = "1.88"
+
+[lib]
+name = "findanything_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+dirs = "6"
+fastembed = { version = "5", default-features = false, features = ["hf-hub-native-tls", "ort-download-binaries-native-tls"] }
+plist = "1"
+rusqlite = { version = "0.37", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+strsim = "0.11"
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-global-shortcut = "2"
+walkdir = "2"
