@@ -18,7 +18,7 @@ The site runs at [http://localhost:5174](http://localhost:5174).
 npm run build:web
 ```
 
-The build fetches recent public GitHub releases. Until releases exist, it shows recent commits from `master`. The result is embedded in the static bundle, so browsers do not call GitHub at runtime.
+The build fetches recent public GitHub releases. Until releases exist, it shows recent commits from `main`. The result is embedded in the static bundle, so browsers do not call GitHub at runtime.
 
 ## Docker
 

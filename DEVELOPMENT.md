@@ -23,7 +23,7 @@ The semantic model is downloaded into the user's cache on first development laun
 npm run dev:web
 ```
 
-The website runs at [http://localhost:5174](http://localhost:5174). Its production build fetches recent public releases from GitHub, falling back to recent `master` changes until releases exist, and embeds that data into the static bundle.
+The website runs at [http://localhost:5174](http://localhost:5174). Its production build fetches recent public releases from GitHub, falling back to recent `main` changes until releases exist, and embeds that data into the static bundle.
 
 ## Validation
 

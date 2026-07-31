@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const REPOSITORY = "joswayski/findanything";
-const DEFAULT_BRANCH = "master";
+const DEFAULT_BRANCH = "main";
 const ITEM_COUNT = 6;
 
 type GitHubRelease = {
