@@ -4,8 +4,8 @@
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --accent: #5b5ce2;
-  --accent-hover: #4b4cc7;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
   --ink: #1d1d1f;
   --muted: #6e6e73;
   --soft: #929298;
@@ -26,7 +26,7 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(ellipse 88% 48% at 50% -18%, rgba(91, 92, 226, 0.09), transparent 58%),
+    radial-gradient(ellipse 88% 48% at 50% -18%, rgba(37, 99, 235, 0.09), transparent 58%),
     var(--canvas);
 }
 
@@ -37,7 +37,7 @@ a {
 
 ::selection {
   color: var(--ink);
-  background: rgba(91, 92, 226, 0.2);
+  background: rgba(37, 99, 235, 0.2);
 }
 
 .site-shell {
@@ -65,10 +65,10 @@ a {
   gap: 8px;
   margin: 0;
   padding: 6px 10px;
-  border: 1px solid rgba(91, 92, 226, 0.16);
+  border: 1px solid rgba(37, 99, 235, 0.16);
   border-radius: 999px;
   color: #55555d;
-  background: rgba(91, 92, 226, 0.055);
+  background: rgba(37, 99, 235, 0.055);
   font-size: 12px;
   font-weight: 550;
 }
@@ -78,7 +78,7 @@ a {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(91, 92, 226, 0.1);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .brand-row {
@@ -105,8 +105,8 @@ a {
   place-items: center;
   border-radius: 13px;
   color: #ffffff;
-  background: linear-gradient(145deg, #7b7cf0, #4d4fc8);
-  box-shadow: 0 9px 25px rgba(91, 92, 226, 0.21);
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 9px 25px rgba(37, 99, 235, 0.21);
 }
 
 .brand-symbol svg {
@@ -152,7 +152,7 @@ a {
   border-radius: 9px;
   color: #ffffff;
   background: var(--accent);
-  box-shadow: 0 8px 22px rgba(91, 92, 226, 0.16);
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.16);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
@@ -161,7 +161,7 @@ a {
 
 .github-button:hover {
   background: var(--accent-hover);
-  box-shadow: 0 10px 26px rgba(91, 92, 226, 0.2);
+  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.2);
   transform: translateY(-1px);
 }
 
@@ -209,7 +209,7 @@ a {
   border: 2px solid var(--canvas);
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 1px rgba(91, 92, 226, 0.25);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
 }
 
 .timeline a {
