@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const REPO_URL = "https://github.com/joswayski/findanything";
-const CREATOR_URL = "https://josevalerio.com";
+const X_URL = "https://x.com/josevalerio";
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", {
   numeric: "always",
@@ -33,7 +33,11 @@ export default function Home() {
 
           <p className="tagline">
             A fast, local-first desktop launcher that understands what you mean and learns what you
-            choose. Built by <a href={CREATOR_URL}>Jose Valerio</a>.
+            choose. Built by{" "}
+            <a href={X_URL} target="_blank" rel="noreferrer">
+              Jose Valerio
+            </a>
+            .
           </p>
 
           <a className="github-button" href={REPO_URL} target="_blank" rel="noreferrer">
