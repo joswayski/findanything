@@ -71,7 +71,18 @@ fn toggle_launcher(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    {
+        // Windows and Linux open a second process from the app icon. Register
+        // this first so that launch can restore the existing window and exit.
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_launcher(app);
+        }));
+    }
+
+    let app = builder
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
