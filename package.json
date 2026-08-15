@@ -9,8 +9,7 @@
   "scripts": {
     "dev": "vite",
     "dev:web": "npm run dev --workspace @findanything/web",
-    "build": "npm run build:desktop && npm run build:web",
-    "build:desktop": "tsc && vite build",
+    "build": "tsc && vite build",
     "build:web": "npm run build --workspace @findanything/web",
     "preview:web": "npm run build:web && npm run preview --workspace @findanything/web",
     "deploy:web": "npm run build:web && npm run deploy --workspace @findanything/web",

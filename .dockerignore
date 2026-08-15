@@ -2,6 +2,7 @@
 .github
 node_modules
 dist
+apps/web/.generated
 apps/web/dist
 src-tauri/target
 src-tauri/gen

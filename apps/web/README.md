@@ -32,7 +32,7 @@ The root `wrangler.jsonc` points Cloudflare at `apps/web/dist/client`. It intent
 For a repository-connected Cloudflare Workers build, use:
 
 - Root directory: `/`
-- Build command: `npm run build`
+- Build command: `npm run build:web`
 - Deploy command: `npx wrangler deploy`
 
-The root build produces both the desktop frontend and the prerendered website. Tauri uses the separate `npm run build:desktop` command so packaging the desktop app remains offline and does not fetch website data.
+The desktop app uses `npm run build`. The website uses `npm run build:web` and produces its prerendered assets in `apps/web/dist/client`, which Cloudflare deploys directly. The root Dockerfile also runs `npm run build:web` and serves only this website for the existing Railway service until the custom domain is moved to Cloudflare.
