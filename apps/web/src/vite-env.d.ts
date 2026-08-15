@@ -10,3 +10,4 @@ type RecentItem = {
 
 declare const __RECENT_ITEMS__: readonly RecentItem[];
 declare const __RECENT_SECTION_TITLE__: string;
+declare const __BUILD_TIME__: string;

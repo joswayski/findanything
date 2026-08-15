@@ -1,16 +1,23 @@
 import { useEffect, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 
 const REPO_URL = "https://github.com/joswayski/findanything";
 const X_URL = "https://x.com/josevalerio";
+const BUILD_TIME = new Date(__BUILD_TIME__).getTime();
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat("en", {
   numeric: "always",
 });
 
-export default function Home() {
-  const [now, setNow] = useState(() => Date.now());
+export const Route = createFileRoute("/")({
+  component: Home,
+});
+
+function Home() {
+  const [now, setNow] = useState(BUILD_TIME);
 
   useEffect(() => {
+    setNow(Date.now());
     const interval = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(interval);
   }, []);

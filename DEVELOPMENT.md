@@ -23,7 +23,7 @@ The semantic model is downloaded into the user's cache on first development laun
 npm run dev:web
 ```
 
-The website runs at [http://localhost:5174](http://localhost:5174). Its production build fetches recent public releases from GitHub, falling back to recent `main` changes until releases exist, and embeds that data into the static bundle.
+The website runs at [http://localhost:5174](http://localhost:5174). It uses TanStack Start, but every route is prerendered at build time. The production build fetches recent public releases from GitHub, falling back to recent `main` changes until releases exist, and embeds that data into the generated HTML and client assets.
 
 ## Validation
 
@@ -34,11 +34,11 @@ cargo test --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-## Website container
+## Website preview and deployment
 
 ```sh
-docker build -t findanything-web .
-docker run --rm -p 8080:3000 findanything-web
+npm run preview:web
+npm run deploy:web
 ```
 
-The container serves the static site on port `3000`. Railway's `RAILWAY_GIT_COMMIT_SHA` build argument refreshes the GitHub activity data on each deployment.
+The preview command builds the site and serves it with Wrangler's local Cloudflare runtime. The deploy command rebuilds the site and uploads only `apps/web/dist/client` through Cloudflare Workers Static Assets. There is no request-time Worker or Node server.
