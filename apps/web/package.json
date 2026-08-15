@@ -7,8 +7,8 @@
     "generate": "node scripts/generate-site-data.mjs",
     "dev": "npm run generate && vite dev",
     "build": "npm run generate && vite build && tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "preview": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "preview": "wrangler dev --config ../../wrangler.jsonc",
+    "deploy": "wrangler deploy --config ../../wrangler.jsonc"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.29",

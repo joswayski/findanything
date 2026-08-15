@@ -27,9 +27,12 @@ npm run preview:web
 npm run deploy:web
 ```
 
-`wrangler.jsonc` points Cloudflare at `dist/client`. It intentionally has no `main` entry point: every request is served as a static asset, without an SSR Worker or Node server.
+The root `wrangler.jsonc` points Cloudflare at `apps/web/dist/client`. It intentionally has no `main` entry point: every request is served as a static asset, without an SSR Worker or Node server.
 
-For a repository-connected Cloudflare Workers build, keep the repository root as the build root and use:
+For a repository-connected Cloudflare Workers build, use:
 
-- Build command: `npm run build:web`
-- Deploy command: `npm run deploy --workspace @findanything/web`
+- Root directory: `/`
+- Build command: `npm run build`
+- Deploy command: `npx wrangler deploy`
+
+The root build produces both the desktop frontend and the prerendered website. Tauri uses the separate `npm run build:desktop` command so packaging the desktop app remains offline and does not fetch website data.

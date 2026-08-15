@@ -1,0 +1,8 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "findanything-web",
+  "compatibility_date": "2026-08-15",
+  "assets": {
+    "directory": "./apps/web/dist/client"
+  }
+}
