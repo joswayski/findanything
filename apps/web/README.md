@@ -35,4 +35,4 @@ For a repository-connected Cloudflare Workers build, use:
 - Build command: `npm run build`
 - Deploy command: `npx wrangler deploy`
 
-The root build produces both the desktop frontend and the prerendered website. Tauri uses the separate `npm run build:desktop` command so packaging the desktop app remains offline and does not fetch website data.
+The root build produces the prerendered website and copies its static assets to the root `dist` directory for hosts that auto-detect a Vite build. Cloudflare deploys the same output directly from `apps/web/dist/client`. Tauri uses the separate `npm run build:desktop` command so packaging the desktop app remains offline and does not fetch website data.
