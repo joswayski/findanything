@@ -11,7 +11,8 @@
     "dev:web": "npm run dev --workspace @findanything/web",
     "build": "tsc && vite build",
     "build:web": "npm run build --workspace @findanything/web",
-    "start:web": "npm run start --workspace @findanything/web",
+    "preview:web": "npm run build:web && npm run preview --workspace @findanything/web",
+    "deploy:web": "npm run build:web && npm run deploy --workspace @findanything/web",
     "check": "npm run check:desktop && npm run build:web",
     "check:desktop": "tsc --noEmit",
     "tauri": "tauri"
