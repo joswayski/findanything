@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "findanything-web",
+  "name": "findanything",
   "compatibility_date": "2026-08-15",
   // Keep dashboard plaintext vars. wrangler deploy deletes them otherwise.
   "keep_vars": true,
