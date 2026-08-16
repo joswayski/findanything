@@ -42,3 +42,5 @@ npm run deploy:web
 ```
 
 The preview command builds the site and serves it with Wrangler's local Cloudflare runtime. The deploy command rebuilds the site and uploads only `apps/web/dist/client` through Cloudflare Workers Static Assets. There is no request-time Worker or Node server.
+
+Keep the Workers Builds **root directory** at `/`. Do not set it to `apps/web` — `wrangler.jsonc` and the npm lockfile live at the repo root. The dashboard build command can stay `npm run build`; on Cloudflare (`WORKERS_CI=1`) that script builds the website. Locally `npm run build` still builds the desktop UI. You can also set the build command to `npm run build:web`.
