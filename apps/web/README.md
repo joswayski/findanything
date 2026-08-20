@@ -35,4 +35,4 @@ For a repository-connected Cloudflare Workers build, use:
 - Build command: `npm run build:web`
 - Deploy command: `npx wrangler deploy`
 
-The desktop app uses `npm run build`. The website uses `npm run build:web` and produces its prerendered assets in `apps/web/dist/client`, which Cloudflare deploys directly. The root Dockerfile also runs `npm run build:web` and serves only this website for the existing Railway service until the custom domain is moved to Cloudflare.
+The desktop app uses `npm run build`. The website uses `npm run build:web` and produces its prerendered assets in `apps/web/dist/client`, which Cloudflare deploys directly.
