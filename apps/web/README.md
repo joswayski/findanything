@@ -32,7 +32,10 @@ The root `wrangler.jsonc` points Cloudflare at `apps/web/dist/client`. It intent
 For a repository-connected Cloudflare Workers build, use:
 
 - Root directory: `/`
-- Build command: `npm run build:web`
+- Build command: `npm run build:web` (production and preview)
 - Deploy command: `npx wrangler deploy`
+- Non-production deploy command: `npx wrangler versions upload`
 
-The desktop app uses `npm run build`. The website uses `npm run build:web` and produces its prerendered assets in `apps/web/dist/client`, which Cloudflare deploys directly.
+`npm run build` is the desktop UI. Preview builds must not use it: that writes `dist/` at the repo root, and Wrangler then fails looking for `apps/web/dist/client`.
+
+The website uses `npm run build:web` and produces its prerendered assets in `apps/web/dist/client`, which Cloudflare deploys directly.
