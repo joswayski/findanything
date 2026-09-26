@@ -29,10 +29,10 @@ def main():
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.version):
         parser.error("version must be major.minor.patch")
     # vpk 1.2 exposes its version in --help, not a --version command.
-    version = re.search(r"\bVelopack CLI (\d+\.\d+\.\d+)\b",
-                        subprocess.check_output(["vpk", "--help"], text=True))
+    help_text = subprocess.check_output(["vpk", "--help", "--legacyConsole"], text=True)
+    version = re.search(r"\bVelopack CLI\s+(\d+\.\d+\.\d+)\b", help_text)
     if version is None or version.group(1) != VPK_VERSION:
-        parser.error(f"install vpk {VPK_VERSION} to match the Rust SDK")
+        parser.error(f"install vpk {VPK_VERSION} to match the Rust SDK; CLI returned {help_text[:300]!r}")
     system = platform.system()
     feed = channel(system, platform.machine())
     source = ROOT / "target/release"
