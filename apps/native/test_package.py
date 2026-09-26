@@ -32,7 +32,7 @@ class PackageTests(unittest.TestCase):
                 argv = ["package.py", "--signed", "--version", "0.2.17", "--stage", str(root / "stage"), "--output", str(root / "out")]
                 with patch.object(package, "ROOT", root), patch("sys.argv", argv), \
                      patch("platform.system", return_value=system), patch("platform.machine", return_value=arch), \
-                     patch("subprocess.check_output", return_value="Description:\n  Velopack CLI\n  1.2.158, for distributing applications.") as version, patch("subprocess.run") as run, \
+                     patch("subprocess.check_output", return_value="Description:\n  \x1b[1mVelopack CLI\n  1.2.158, for distributing applications.\x1b[0m") as version, patch("subprocess.run") as run, \
                      patch.dict(os.environ, {"APPLE_APP_IDENTITY": "test app", "APPLE_INSTALLER_IDENTITY": "test installer", "WINDOWS_CERT_THUMBPRINT": "test-thumbprint"}):
                     package.main()
                     version.assert_called_once_with(["vpk", "--help", "--legacyConsole"], text=True)

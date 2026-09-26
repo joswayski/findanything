@@ -30,6 +30,7 @@ def main():
         parser.error("version must be major.minor.patch")
     # vpk 1.2 exposes its version in --help, not a --version command.
     help_text = subprocess.check_output(["vpk", "--help", "--legacyConsole"], text=True)
+    help_text = re.sub(r"\x1b\[[0-9;]*m", "", help_text)
     version = re.search(r"\bVelopack CLI\s+(\d+\.\d+\.\d+)\b", help_text)
     if version is None or version.group(1) != VPK_VERSION:
         parser.error(f"install vpk {VPK_VERSION} to match the Rust SDK; CLI returned {help_text[:300]!r}")
