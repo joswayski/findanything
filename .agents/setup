@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+log_dir="$HOME/.cache/amp/logs"
+mkdir -p "$log_dir"
+exec > >(tee -a "$log_dir/setup.log") 2>&1
+
+run_step() {
+	local name="$1"
+	shift
+	local started_at=$SECONDS
+	printf '\n[%s] Starting: %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$name"
+	"$@"
+	printf '[%s] Finished: %s (%ss)\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$name" "$((SECONDS - started_at))"
+}
+
+check_node() {
+	if ! command -v node >/dev/null 2>&1; then
+		echo 'Node.js is required (version 24 or newer) but was not found.' >&2
+		exit 1
+	fi
+
+	local node_major
+	node_major="$(node -p 'Number(process.versions.node.split(".")[0])')"
+	if (( node_major < 24 )); then
+		printf 'Node.js 24 or newer is required; found %s.\n' "$(node --version)" >&2
+		exit 1
+	fi
+	printf 'Using Node.js %s and npm %s.\n' "$(node --version)" "$(npm --version)"
+}
+
+install_system_packages() {
+	local packages=(
+		build-essential
+		curl
+		file
+		libayatana-appindicator3-dev
+		libssl-dev
+		libwebkit2gtk-4.1-dev
+		librsvg2-dev
+		libxdo-dev
+		patchelf
+		wget
+	)
+	local missing=()
+	local package status
+	for package in "${packages[@]}"; do
+		status="$(dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null || true)"
+		if [[ "$status" != installed ]]; then
+			missing+=("$package")
+		fi
+	done
+
+	if ((${#missing[@]} == 0)); then
+		echo 'Tauri system build prerequisites are already installed.'
+		return
+	fi
+
+	printf 'Installing missing system packages: %s\n' "${missing[*]}"
+	if (( EUID == 0 )); then
+		apt-get update
+		DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+	else
+		sudo -n apt-get update
+		sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+	fi
+}
+
+install_rust_toolchain() {
+	export PATH="$HOME/.cargo/bin:$PATH"
+	if ! command -v rustup >/dev/null 2>&1; then
+		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+	fi
+
+	rustup toolchain install stable --profile minimal --component clippy --component rustfmt
+	rustup default stable
+
+	local cargo_env="$HOME/.cargo/env"
+	local profile="$HOME/.bash_profile"
+	local marker='# Find Anything Rust toolchain'
+	if [[ -f "$cargo_env" ]] && ! grep -Fqx "$marker" "$profile" 2>/dev/null; then
+		{
+			printf '\n%s\n' "$marker"
+			printf 'if [ -f "$HOME/.cargo/env" ]; then\n'
+			printf '  . "$HOME/.cargo/env"\n'
+			printf 'fi\n'
+		} >> "$profile"
+	fi
+
+	printf 'Using %s.\n' "$(rustc +stable --version)"
+}
+
+run_step 'Check Node.js toolchain' check_node
+run_step 'Install Tauri system prerequisites' install_system_packages
+run_step 'Install Rust toolchain' install_rust_toolchain
+run_step 'Install JavaScript workspace dependencies' npm install --no-save --no-audit --no-fund
+run_step 'Fetch locked Rust dependencies' cargo fetch --locked --manifest-path src-tauri/Cargo.toml
+
+printf '\nOrb setup complete for %s.\n' "$repo_root"
