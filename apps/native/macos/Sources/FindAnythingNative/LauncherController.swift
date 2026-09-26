@@ -1,5 +1,21 @@
 import AppKit
 
+// A borderless search cell otherwise reuses the text field's top-aligned
+// drawing rect, overlapping its search button in a taller Graphite control.
+final class GraphiteSearchCell: NSSearchFieldCell {
+    override func searchTextRect(forBounds rect: NSRect) -> NSRect {
+        NSRect(x: rect.minX + 32, y: rect.midY - 9, width: max(0, rect.width - 64), height: 18)
+    }
+    override func drawingRect(forBounds rect: NSRect) -> NSRect { searchTextRect(forBounds: rect) }
+    override func titleRect(forBounds rect: NSRect) -> NSRect { searchTextRect(forBounds: rect) }
+    override func searchButtonRect(forBounds rect: NSRect) -> NSRect {
+        NSRect(x: rect.minX + 10, y: rect.midY - 8, width: 16, height: 16)
+    }
+    override func cancelButtonRect(forBounds rect: NSRect) -> NSRect {
+        NSRect(x: rect.maxX - 26, y: rect.midY - 8, width: 16, height: 16)
+    }
+}
+
 final class QueryField: NSSearchField {
     var keyHandler: ((NSEvent) -> Bool)?
 
@@ -122,7 +138,8 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         content.wantsLayer = true
         content.layer?.backgroundColor = Graphite.bg.cgColor
 
-        query.controlSize = .large
+        query.cell = GraphiteSearchCell(textCell: "")
+        query.controlSize = .regular
         query.placeholderString = "Find anything…"
         query.font = .systemFont(ofSize: Graphite.body_size)
         query.textColor = Graphite.text
@@ -131,10 +148,11 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         query.sendsSearchStringImmediately = true
         query.translatesAutoresizingMaskIntoConstraints = false
         query.isBezeled = false
-        query.drawsBackground = true
+        query.drawsBackground = false
         query.backgroundColor = Graphite.control
         query.focusRingType = .none
         query.wantsLayer = true
+        query.layer?.backgroundColor = Graphite.control.cgColor
         query.layer?.cornerRadius = Graphite.radius
         query.layer?.borderWidth = 1
         query.layer?.borderColor = Graphite.border_strong.cgColor
@@ -144,6 +162,7 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         heading.textColor = Graphite.secondary
 
         table.headerView = nil
+        table.style = .plain
         table.rowHeight = Graphite.row_height
         table.intercellSpacing = .zero
         table.selectionHighlightStyle = .regular
@@ -350,12 +369,12 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
     func windowShouldClose(_ sender: NSWindow) -> Bool { hide(); return false }
 
     private func loadFixture(_ fixture: String) {
+        status.stringValue = "Keyword mode"
         if fixture == "minimum" {
             window?.setContentSize(NSSize(width: Graphite.minimum_width, height: Graphite.minimum_height))
         }
         if fixture == "error" {
             setMessage("Search hit a snag.\nFixture engine unavailable", error: true)
-            status.stringValue = "Semantic error"
             return
         }
         if fixture == "empty" {

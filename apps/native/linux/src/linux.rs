@@ -24,14 +24,14 @@ window, .graphite-root, scrolledwindow, viewport, list {
   background: @graphite_bg;
   color: @graphite_text;
   font-family: system-ui, sans-serif;
-  font-size: 13px;
+  font-size: $body_size;
 }
 .graphite-root { padding: 0; }
 .graphite-search {
-  min-height: 38px;
+  min-height: $search_inner_height;
   padding: 0 12px;
   border: 1px solid @graphite_border_strong;
-  border-radius: 7px;
+  border-radius: $radius;
   background: @graphite_control;
   color: @graphite_text_strong;
   box-shadow: none;
@@ -43,50 +43,48 @@ window, .graphite-root, scrolledwindow, viewport, list {
 }
 .graphite-search:disabled { color: @graphite_faint; opacity: .65; }
 .graphite-menu > button {
-  min-width: 38px; min-height: 38px;
+  min-width: $search_inner_height; min-height: $search_inner_height;
   padding: 0; border: 1px solid @graphite_border_strong;
-  border-radius: 7px; background: @graphite_control; color: @graphite_secondary;
+  border-radius: $radius; background: @graphite_control; color: @graphite_secondary;
 }
 .graphite-menu > button:hover { background: @graphite_control_hover; color: @graphite_text_strong; }
 .graphite-menu > button:active, .graphite-menu > button:checked { background: @graphite_control_active; }
 .graphite-section {
-  min-height: 20px; color: @graphite_muted; font-size: 11px;
+  min-height: $section_height; color: @graphite_muted; font-size: $metadata_size;
   font-weight: 600; padding: 0 2px;
 }
 .graphite-list { background: @graphite_bg; }
 .graphite-list row {
-  min-height: 56px; padding: 0 12px 0 10px;
-  border-left: 2px solid transparent; border-radius: 7px;
+  min-height: $row_height; padding: 0 12px 0 10px;
+  border-left: 2px solid transparent; border-radius: $radius;
   background: @graphite_bg; color: @graphite_text;
 }
 .graphite-list row:hover { background: @graphite_control_hover; }
 .graphite-list row:selected {
   background: @graphite_selected; border-left-color: @graphite_accent;
 }
-.result-icon { color: @graphite_secondary; font-size: 20px; font-weight: 400; }
-.result-title { color: @graphite_text_strong; font-size: 13px; font-weight: 600; }
-.result-subtitle { color: @graphite_muted; font-size: 11px; font-weight: 400; }
-.state-row { background: @graphite_bg; border-left-color: transparent; }
-.state-heading { color: @graphite_text_strong; font-weight: 600; font-size: 13px; }
+.result-title { color: @graphite_text_strong; font-size: $body_size; font-weight: 600; }
+.result-subtitle { color: @graphite_muted; font-size: $metadata_size; font-weight: 400; }
+.state-heading { color: @graphite_text_strong; font-weight: 600; font-size: $body_size; }
 .error-heading { color: @graphite_danger; }
-.state-detail { color: @graphite_muted; font-size: 11px; }
+.state-detail { color: @graphite_muted; font-size: $metadata_size; }
 .graphite-footer {
-  min-height: 28px; color: @graphite_muted; font-size: 11px;
+  min-height: $footer_height; color: @graphite_muted; font-size: $metadata_size;
   border-top: 1px solid @graphite_hairline;
 }
 popover > contents {
   padding: 8px; border: 1px solid @graphite_border_strong;
-  border-radius: 7px; background: @graphite_popover; color: @graphite_text;
+  border-radius: $radius; background: @graphite_popover; color: @graphite_text;
 }
 .popover-menu button {
-  padding: 7px 10px; border: 0; border-radius: 7px;
+  padding: 7px 10px; border: 0; border-radius: $radius;
   background: transparent; color: @graphite_text;
 }
 .popover-menu button:hover { background: @graphite_control_hover; }
 .popover-menu button:active { background: @graphite_control_active; }
 .popover-menu button:disabled { color: @graphite_faint; opacity: .6; }
 button.retry {
-  padding: 6px 12px; border-radius: 7px; border: 1px solid @graphite_border_strong;
+  padding: 6px 12px; border-radius: $radius; border: 1px solid @graphite_border_strong;
   background: @graphite_control; color: @graphite_text;
 }
 button.retry:hover { background: @graphite_control_hover; }
@@ -98,26 +96,19 @@ scrollbar slider { min-width: 5px; min-height: 24px; border-radius: 3px; backgro
 fn graphite_css() -> String {
     // GTK 4.6 has no CSS custom properties. Substitute the shared dimensions
     // here as well as using them in widget layout.
-    GRAPHITE_CSS
-        .replace("13px", &format!("{}px", graphite::BODY_SIZE))
-        .replace("11px", &format!("{}px", graphite::METADATA_SIZE))
-        .replace(
-            "border-radius: 7px",
-            &format!("border-radius: {}px", graphite::RADIUS),
-        )
-        .replace(
-            "min-height: 56px",
-            &format!("min-height: {}px", graphite::ROW_HEIGHT),
-        )
-        .replace(
-            "min-height: 28px",
-            &format!("min-height: {}px", graphite::FOOTER_HEIGHT),
-        )
-        .replace(
-            "min-height: 20px",
-            &format!("min-height: {}px", graphite::SECTION_HEIGHT),
-        )
-        .replace("38px", &format!("{}px", graphite::SEARCH_HEIGHT - 2))
+    let mut css = GRAPHITE_CSS.to_string();
+    for (name, value) in [
+        ("$body_size", graphite::BODY_SIZE),
+        ("$metadata_size", graphite::METADATA_SIZE),
+        ("$radius", graphite::RADIUS),
+        ("$row_height", graphite::ROW_HEIGHT),
+        ("$footer_height", graphite::FOOTER_HEIGHT),
+        ("$section_height", graphite::SECTION_HEIGHT),
+        ("$search_inner_height", graphite::SEARCH_HEIGHT - 2),
+    ] {
+        css = css.replace(name, &format!("{value}px"));
+    }
+    css
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -430,6 +421,7 @@ impl Ui {
                 content.append(&icon);
                 let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
                 labels.set_hexpand(true);
+                labels.set_valign(gtk::Align::Center);
                 let title = gtk::Label::new(Some(&result.title));
                 title.set_ellipsize(gtk::pango::EllipsizeMode::End);
                 title.set_xalign(0.0);
@@ -709,7 +701,12 @@ fn build_ui(
     keys.set_propagation_phase(gtk::PropagationPhase::Capture);
     keys.connect_key_pressed({
         let ui = ui.clone();
+        let popover = popover.clone();
+        let menu_button = menu_button.clone();
         move |_, key, _, _| {
+            if popover.is_visible() || menu_button.has_focus() {
+                return Propagation::Proceed;
+            }
             let mut ui = ui.borrow_mut();
             match key {
                 gdk::Key::Down => ui.move_selection(1),

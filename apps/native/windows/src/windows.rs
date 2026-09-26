@@ -482,9 +482,14 @@ mod win {
                     LineTo(dc, x + p, y + p);
                 }
                 _ => {
-                    Ellipse(dc, x + p, y + p, x + size - p, y + size - p);
-                    MoveToEx(dc, x + size / 2, y, null_mut());
-                    LineTo(dc, x + size / 2, y + p * 2);
+                    for (row, knob) in [(1, 2), (2, 3), (3, 2)] {
+                        let line_y = y + size * row / 4;
+                        let knob_x = x + size * knob / 5;
+                        MoveToEx(dc, x + p, line_y, null_mut());
+                        LineTo(dc, x + size - p, line_y);
+                        MoveToEx(dc, knob_x, line_y - p / 2, null_mut());
+                        LineTo(dc, knob_x, line_y + p / 2);
+                    }
                 }
             }
             SelectObject(dc, old_brush);
@@ -513,18 +518,18 @@ mod win {
                         let search_y = inset;
                         MoveWindow(
                             a.edit,
-                            inset + s(12),
+                            inset + s(32),
                             search_y + s(12),
-                            w - inset * 2 - s(72),
+                            w - inset * 2 - s(92),
                             s(20),
                             1,
                         );
                         MoveWindow(
                             a.menu_button,
-                            w - inset - s(36),
-                            search_y + s(2),
-                            s(34),
-                            s(36),
+                            w - inset - s(graphite::SEARCH_HEIGHT),
+                            search_y,
+                            s(graphite::SEARCH_HEIGHT),
+                            s(graphite::SEARCH_HEIGHT),
                             1,
                         );
                         let section_y = search_y + s(graphite::SEARCH_HEIGHT + graphite::GAP);
@@ -638,14 +643,27 @@ mod win {
                                 dc,
                                 s(graphite::INSET),
                                 s(graphite::INSET),
-                                r.right - s(graphite::INSET),
+                                r.right
+                                    - s(graphite::INSET + graphite::SEARCH_HEIGHT + graphite::GAP),
                                 s(graphite::INSET + graphite::SEARCH_HEIGHT),
-                                s(graphite::RADIUS),
-                                s(graphite::RADIUS),
+                                s(graphite::RADIUS * 2),
+                                s(graphite::RADIUS * 2),
                             );
                             SelectObject(dc, old_brush);
                             SelectObject(dc, old_pen);
                             DeleteObject(pen);
+                            let search_pen =
+                                CreatePen(PS_SOLID, s(2), colorref(graphite::SECONDARY));
+                            let old_pen = SelectObject(dc, search_pen);
+                            let old_brush = SelectObject(dc, GetStockObject(NULL_BRUSH));
+                            let x = s(graphite::INSET + 12);
+                            let y = s(graphite::INSET + 13);
+                            Ellipse(dc, x, y, x + s(10), y + s(10));
+                            MoveToEx(dc, x + s(8), y + s(8), null_mut());
+                            LineTo(dc, x + s(14), y + s(14));
+                            SelectObject(dc, old_brush);
+                            SelectObject(dc, old_pen);
+                            DeleteObject(search_pen);
                         }
                     }
                     EndPaint(hwnd, &ps);
@@ -697,15 +715,30 @@ mod win {
                     if (d.CtlID == MENU_BUTTON as u32 || d.CtlID == RETRY as u32)
                         && let Some(a) = app(hwnd)
                     {
+                        let saved_dc = SaveDC(d.hDC);
                         FillRect(
                             d.hDC,
                             &d.rcItem,
                             if a.high_contrast {
                                 GetSysColorBrush(COLOR_BTNFACE)
                             } else {
-                                a.brushes[2]
+                                a.brushes[0]
                             },
                         );
+                        if !a.high_contrast {
+                            let dpi = GetDpiForWindow(hwnd) as i32;
+                            SelectObject(d.hDC, GetStockObject(NULL_PEN));
+                            SelectObject(d.hDC, a.brushes[2]);
+                            RoundRect(
+                                d.hDC,
+                                d.rcItem.left,
+                                d.rcItem.top,
+                                d.rcItem.right,
+                                d.rcItem.bottom,
+                                scale(graphite::RADIUS * 2, dpi),
+                                scale(graphite::RADIUS * 2, dpi),
+                            );
+                        }
                         SetBkMode(d.hDC, TRANSPARENT as i32);
                         SetTextColor(
                             d.hDC,
@@ -717,27 +750,47 @@ mod win {
                         );
                         SelectObject(d.hDC, a.font);
                         let mut r = d.rcItem;
-                        DrawTextW(
-                            d.hDC,
-                            wide(if d.CtlID == RETRY as u32 {
-                                "Retry"
-                            } else {
-                                "≡"
-                            })
-                            .as_ptr(),
-                            -1,
-                            &mut r,
-                            DT_SINGLELINE | DT_CENTER | DT_VCENTER,
-                        );
+                        if d.CtlID == RETRY as u32 {
+                            DrawTextW(
+                                d.hDC,
+                                wide("Retry").as_ptr(),
+                                -1,
+                                &mut r,
+                                DT_SINGLELINE | DT_CENTER | DT_VCENTER,
+                            );
+                        } else {
+                            let dpi = GetDpiForWindow(hwnd) as i32;
+                            let s = |v| scale(v, dpi);
+                            let pen = CreatePen(
+                                PS_SOLID,
+                                s(2),
+                                if a.high_contrast {
+                                    GetSysColor(COLOR_BTNTEXT)
+                                } else {
+                                    colorref(graphite::SECONDARY)
+                                },
+                            );
+                            let old = SelectObject(d.hDC, pen);
+                            let cx = (r.left + r.right) / 2;
+                            let cy = (r.top + r.bottom) / 2;
+                            for dy in [-5, 0, 5] {
+                                MoveToEx(d.hDC, cx - s(7), cy + s(dy), null_mut());
+                                LineTo(d.hDC, cx + s(7), cy + s(dy));
+                            }
+                            SelectObject(d.hDC, old);
+                            DeleteObject(pen);
+                        }
                         if d.itemState & ODS_FOCUS != 0 {
                             DrawFocusRect(d.hDC, &r);
                         }
+                        RestoreDC(d.hDC, saved_dc);
                         return 1;
                     }
                     if d.CtlID == LIST as u32
                         && d.itemID != u32::MAX
                         && let Some(a) = app(hwnd)
                     {
+                        let saved_dc = SaveDC(d.hDC);
                         let selected = d.itemState & ODS_SELECTED != 0;
                         let bg = if a.high_contrast {
                             GetSysColorBrush(if selected {
@@ -745,12 +798,24 @@ mod win {
                             } else {
                                 COLOR_WINDOW
                             })
-                        } else if selected {
-                            a.brushes[3]
                         } else {
                             a.brushes[0]
                         };
                         FillRect(d.hDC, &d.rcItem, bg);
+                        if selected && !a.high_contrast {
+                            let dpi = GetDpiForWindow(hwnd) as i32;
+                            SelectObject(d.hDC, GetStockObject(NULL_PEN));
+                            SelectObject(d.hDC, a.brushes[3]);
+                            RoundRect(
+                                d.hDC,
+                                d.rcItem.left,
+                                d.rcItem.top,
+                                d.rcItem.right,
+                                d.rcItem.bottom,
+                                scale(graphite::RADIUS * 2, dpi),
+                                scale(graphite::RADIUS * 2, dpi),
+                            );
+                        }
                         if let Some(item) = a.response.results.get(d.itemID as usize) {
                             let dpi = GetDpiForWindow(hwnd) as i32;
                             let s = |v| scale(v, dpi);
@@ -805,7 +870,7 @@ mod win {
                                 wide(&item.title).as_ptr(),
                                 -1,
                                 &mut title,
-                                DT_SINGLELINE | DT_END_ELLIPSIS,
+                                DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX,
                             );
                             let mut sub = RECT {
                                 left,
@@ -820,9 +885,10 @@ mod win {
                                 wide(&format!("{} · {}", item.subtitle, item.reason)).as_ptr(),
                                 -1,
                                 &mut sub,
-                                DT_SINGLELINE | DT_END_ELLIPSIS,
+                                DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX,
                             );
                         }
+                        RestoreDC(d.hDC, saved_dc);
                         return 1;
                     }
                 }
@@ -1121,7 +1187,7 @@ mod win {
                 0,
                 wide("STATIC").as_ptr(),
                 wide("Apps & actions").as_ptr(),
-                WS_CHILD | WS_VISIBLE,
+                WS_CHILD | WS_VISIBLE | 0x80, // SS_NOPREFIX: display the literal ampersand.
                 0,
                 0,
                 0,

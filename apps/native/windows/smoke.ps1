@@ -14,6 +14,8 @@ public static class NativeSmoke {
     [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessageW")] public static extern IntPtr ReadItem(IntPtr h, uint m, IntPtr w, StringBuilder text);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out Rect r);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] public static extern IntPtr GetWindowLongPtr(IntPtr h, int index);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
     public struct Rect { public int Left, Top, Right, Bottom; }
@@ -57,6 +59,8 @@ foreach ($state in @('results', 'empty', 'error')) {
         Check (($listStyle -band 0x40) -ne 0) 'ListBox must remain LBS_HASSTRINGS for accessibility'
         Check (($listStyle -band 0x10) -ne 0 -and ($listStyle -band 0x20) -eq 0) 'ListBox must use fixed owner-drawn rows'
         Start-Sleep -Milliseconds 400
+        $dpi = [NativeSmoke]::GetDpiForWindow($h)
+        Check ([NativeSmoke]::SendMessage($list, 0x1A1, 0, 0).ToInt32() -eq [int](56*$dpi/96)) 'Graphite rows must use 56 logical pixels'
         $count = [NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32()
         if ($state -eq 'results') {
             Check ($count -eq 3) "Expected 3 native result rows, got $count"
@@ -64,6 +68,7 @@ foreach ($state in @('results', 'empty', 'error')) {
             [NativeSmoke]::PostMessage($edit, 0x100, 0x28, 0) | Out-Null
             Start-Sleep -Milliseconds 150
             Check ([NativeSmoke]::SendMessage($list, 0x188, 0, 0).ToInt32() -eq 1) 'Down must select second result'
+            Capture $h 'windows-selected'
             [NativeSmoke]::SetText($edit, 0xC, 0, 'display') | Out-Null
             Start-Sleep -Milliseconds 250
             Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 1) 'Filter must leave one result'
@@ -71,6 +76,9 @@ foreach ($state in @('results', 'empty', 'error')) {
             [NativeSmoke]::ReadItem($list, 0x189, 0, $label) | Out-Null
             Check ($label.ToString() -eq 'Displays — System Settings — Suggested') "Wrong filtered row: $label"
             Capture $h 'windows-query'
+            $section = New-Object Text.StringBuilder 100
+            [NativeSmoke]::GetWindowText([NativeSmoke]::GetDlgItem($h,105), $section,100) | Out-Null
+            Check ($section.ToString() -eq 'Best matches') 'Query must update the section label'
             [NativeSmoke]::SetText($edit, 0xC, 0, '資料🚀') | Out-Null
             Start-Sleep -Milliseconds 150
             Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 0) 'Unicode unmatched query must clear results'
@@ -82,6 +90,9 @@ foreach ($state in @('results', 'empty', 'error')) {
             Check ($text.ToString().Contains($expected)) "Missing $state message: $text"
             Capture $h "windows-$state"
         }
+        [NativeSmoke]::SetWindowPos($h, [IntPtr]::Zero, 0, 0, [int](640*$dpi/96), [int](420*$dpi/96), 6) | Out-Null
+        Start-Sleep -Milliseconds 200
+        Capture $h "windows-$state-minimum"
     } finally {
         if (!$process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }
         $process.Dispose()

@@ -83,6 +83,8 @@ def main():
                     command("xdotool", "windowactivate", "--sync", window)
                     time.sleep(.8)
                     command("import", "-window", window, str(args.output / f"{theme}-{state}.png"))
+                    canvas = command("convert", str(args.output / f"{theme}-{state}.png"), "-format", "%[hex:p{10,300}]", "info:")
+                    assert canvas.upper().startswith("161618"), f"Graphite canvas changed under {theme}: {canvas}"
                     if state == "results":
                         command("xdotool", "key", "--clearmodifiers", "Down")
                         time.sleep(.3)
@@ -91,6 +93,17 @@ def main():
                         time.sleep(.4)
                         command("import", "-window", window, str(args.output / f"{theme}-query.png"))
                         assert (args.output / f"{theme}-query.png").read_bytes() != (args.output / f"{theme}-results.png").read_bytes()
+                        command("xdotool", "mousemove", "--window", window, "716", "44", "click", "1")
+                        time.sleep(.3)
+                        # GTK popovers use a separate X11 surface; include the
+                        # composited popup, not just the parent window pixmap.
+                        geometry = dict(line.split("=", 1) for line in command("xdotool", "getwindowgeometry", "--shell", window).splitlines())
+                        menu_capture = str(args.output / f"{theme}-menu.png")
+                        command("import", "-window", "root", menu_capture)
+                        command("convert", menu_capture, "-crop", f"{geometry['WIDTH']}x{geometry['HEIGHT']}+{geometry['X']}+{geometry['Y']}", "+repage", menu_capture)
+                        command("xdotool", "key", "--clearmodifiers", "Escape")
+                        time.sleep(.2)
+                        assert command("xdotool", "getwindowfocus") == window, "Escape in menu must keep the launcher open"
                     command("xdotool", "windowsize", window, "640", "420")
                     time.sleep(.3)
                     command("import", "-window", window, str(args.output / f"{theme}-{state}-minimum.png"))
@@ -102,7 +115,7 @@ def main():
                         time.sleep(.05)
                     else:
                         raise AssertionError("Fixture window remained after process cleanup")
-            print("PASS: 6 native fixture windows, light/dark, keyboard selection/search, minimum size; screenshots captured")
+            print("PASS: 6 native fixture windows, Graphite palette under light/dark, keyboard selection/search, menu Escape, minimum size; screenshots captured")
             if args.lifecycle:
                 applications = Path(temporary) / "applications"
                 applications.mkdir()

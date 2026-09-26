@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import FindAnythingNative
 
 final class NativeTests: XCTestCase {
@@ -19,5 +20,18 @@ final class NativeTests: XCTestCase {
     func testSelectionBoundaries() {
         let state = SearchState(), generation = state.begin(); _ = state.accept([a, a], generation: generation)
         state.move(-4); XCTAssertEqual(state.selected, 0); state.move(8); XCTAssertEqual(state.selected, 1); state.move(1); XCTAssertEqual(state.selected, 1)
+    }
+
+    func testSearchCellReservesIconsAndCentersTextAtBothWidths() {
+        let cell = GraphiteSearchCell(textCell: "")
+        for width in [CGFloat(592), CGFloat(712)] {
+            let bounds = NSRect(x: 7, y: 3, width: width, height: 40)
+            let text = cell.searchTextRect(forBounds: bounds)
+            XCTAssertEqual(text.midY, 23)
+            XCTAssertEqual(text.height, 18)
+            XCTAssertGreaterThan(text.minX, cell.searchButtonRect(forBounds: bounds).maxX)
+            XCTAssertLessThan(text.maxX, cell.cancelButtonRect(forBounds: bounds).minX)
+            XCTAssertEqual(cell.drawingRect(forBounds: bounds), text)
+        }
     }
 }
