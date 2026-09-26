@@ -11,6 +11,7 @@ public static class NativeSmoke {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder b, int n);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
     [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessageW")] public static extern IntPtr SetText(IntPtr h, uint m, IntPtr w, string text);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessageW")] public static extern IntPtr ReadItem(IntPtr h, uint m, IntPtr w, StringBuilder text);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out Rect r);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
@@ -60,6 +61,9 @@ foreach ($state in @('results', 'empty', 'error')) {
             [NativeSmoke]::SetText($edit, 0xC, 0, 'display') | Out-Null
             Start-Sleep -Milliseconds 250
             Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 1) 'Filter must leave one result'
+            $label = New-Object Text.StringBuilder 512
+            [NativeSmoke]::ReadItem($list, 0x189, 0, $label) | Out-Null
+            Check ($label.ToString() -eq 'Displays — System Settings — Suggested') "Wrong filtered row: $label"
             Capture $h 'windows-query'
             [NativeSmoke]::SetText($edit, 0xC, 0, '資料🚀') | Out-Null
             Start-Sleep -Milliseconds 150

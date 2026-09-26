@@ -182,6 +182,7 @@ struct Ui {
     window: gtk::ApplicationWindow,
     query: gtk::SearchEntry,
     list: gtk::ListBox,
+    scroll: gtk::ScrolledWindow,
     status: gtk::Label,
     worker: Option<Worker>,
     fixture: Option<Fixture>,
@@ -237,7 +238,9 @@ impl Ui {
             let heading = gtk::Label::new(Some("Search hit a snag."));
             heading.add_css_class("title-3");
             box_.append(&heading);
-            box_.append(&gtk::Label::new(Some(error)));
+            let detail = gtk::Label::new(Some(error));
+            detail.set_wrap(true);
+            box_.append(&detail);
             if self.fixture.is_none() {
                 let retry = gtk::Button::with_label("Retry");
                 retry.set_action_name(Some("app.retry"));
@@ -267,11 +270,14 @@ impl Ui {
                 icon.set_pixel_size(32);
                 content.append(&icon);
                 let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
+                labels.set_hexpand(true);
                 let title = gtk::Label::new(Some(&result.title));
+                title.set_ellipsize(gtk::pango::EllipsizeMode::End);
                 title.set_xalign(0.0);
                 title.add_css_class("heading");
                 let subtitle =
                     gtk::Label::new(Some(&format!("{}  ·  {}", result.subtitle, result.reason)));
+                subtitle.set_ellipsize(gtk::pango::EllipsizeMode::End);
                 subtitle.set_xalign(0.0);
                 subtitle.add_css_class("dim-label");
                 labels.append(&title);
@@ -299,6 +305,9 @@ impl Ui {
             .clamp(0, self.response.results.len() as isize - 1) as usize;
         if let Some(row) = self.list.row_at_index(self.selected as i32) {
             self.list.select_row(Some(&row));
+            let bounds = row.allocation();
+            let adjustment = self.scroll.vadjustment();
+            adjustment.clamp_page(bounds.y() as f64, (bounds.y() + bounds.height()) as f64);
         }
     }
     fn activate(&mut self, index: usize) {
@@ -461,6 +470,7 @@ fn build_ui(
         window: window.clone(),
         query: query.clone(),
         list: list.clone(),
+        scroll,
         status,
         worker: fixture.is_none().then(Worker::spawn),
         fixture,

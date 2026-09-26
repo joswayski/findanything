@@ -230,7 +230,7 @@ mod win {
                 SendMessageW(self.list, LB_RESETCONTENT, 0, 0);
                 for result in &self.response.results {
                     let label = wide(&format!(
-                        "{}\t{} — {}",
+                        "{} — {} — {}",
                         result.title, result.subtitle, result.reason
                     ));
                     SendMessageW(self.list, LB_ADDSTRING, 0, label.as_ptr() as isize);
@@ -584,6 +584,12 @@ mod win {
                 EDIT as _,
                 module,
                 null(),
+            );
+            SendMessageW(
+                state.edit,
+                EM_SETCUEBANNER,
+                1,
+                wide("Find anything…").as_ptr() as isize,
             );
             state.list = CreateWindowExW(
                 WS_EX_CLIENTEDGE,

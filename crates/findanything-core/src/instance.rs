@@ -55,9 +55,32 @@ impl Instance {
     }
 }
 
+impl Drop for Instance {
+    fn drop(&mut self) {
+        // A concurrent fork can briefly inherit this file description. Closing
+        // our descriptor alone would keep flock held until that child execs.
+        // Only the elected owner explicitly releases the shared lock.
+        let _ = FileExt::unlock(&self._lock);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn inherited_descriptor_does_not_extend_owner_lifetime() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = Instance::acquire_at(dir.path()).unwrap().unwrap();
+        let inherited = first._lock.try_clone().unwrap();
+        assert!(Instance::acquire_at(dir.path()).unwrap().is_none());
+        drop(first);
+        let replacement = Instance::acquire_at(dir.path()).unwrap().unwrap();
+        drop(inherited);
+        assert!(Instance::acquire_at(dir.path()).unwrap().is_none());
+        drop(replacement);
+    }
 
     #[test]
     fn forwards_coalesces_and_releases_without_deleting_lock() {
