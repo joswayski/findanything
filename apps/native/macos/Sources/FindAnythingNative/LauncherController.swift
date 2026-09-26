@@ -139,6 +139,8 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         content.layer?.backgroundColor = Graphite.bg.cgColor
 
         query.cell = GraphiteSearchCell(textCell: "")
+        query.isEditable = true
+        query.isSelectable = true
         query.controlSize = .regular
         query.placeholderString = "Find anything…"
         query.font = .systemFont(ofSize: Graphite.body_size)

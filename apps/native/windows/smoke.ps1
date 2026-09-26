@@ -81,7 +81,13 @@ foreach ($state in @('results', 'empty', 'error')) {
             Check ($section.ToString() -eq 'Best matches') 'Query must update the section label'
             [NativeSmoke]::SetText($edit, 0xC, 0, '資料🚀') | Out-Null
             Start-Sleep -Milliseconds 150
+            $unicode = New-Object Text.StringBuilder 100
+            [NativeSmoke]::GetWindowText($edit, $unicode,100) | Out-Null
+            Check ($unicode.ToString() -eq '資料🚀') 'Native Edit must preserve Unicode including the surrogate pair'
             Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 0) 'Unicode unmatched query must clear results'
+            Capture $h 'windows-unicode'
+            [NativeSmoke]::SetText($edit, 0xC, 0, '') | Out-Null
+            Start-Sleep -Milliseconds 150
         } else {
             Check ($count -eq 0) 'Empty/error fixture must have no rows'
             $text = New-Object Text.StringBuilder 512

@@ -34,4 +34,19 @@ final class NativeTests: XCTestCase {
             XCTAssertEqual(cell.drawingRect(forBounds: bounds), text)
         }
     }
+
+    func testLauncherRetainsNativeFieldEditorAndUnicodeInput() throws {
+        _ = NSApplication.shared
+        let launcher = LauncherController(worker: nil, fixture: "results")
+        defer { launcher.hide() }
+        let content = try XCTUnwrap(launcher.window?.contentView)
+        let stack = try XCTUnwrap(content.subviews.compactMap { $0 as? NSStackView }.first)
+        let field = try XCTUnwrap(stack.arrangedSubviews.compactMap { $0 as? NSSearchField }.first)
+        XCTAssertTrue(field.isEditable)
+        XCTAssertTrue(field.isSelectable)
+        launcher.showAndFocus()
+        let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
+        editor.insertText("資料🚀", replacementRange: NSRange(location: 0, length: 0))
+        XCTAssertEqual(field.stringValue, "資料🚀")
+    }
 }

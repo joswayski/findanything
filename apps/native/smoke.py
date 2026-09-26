@@ -97,10 +97,8 @@ def main():
                         time.sleep(.3)
                         # GTK popovers use a separate X11 surface; include the
                         # composited popup, not just the parent window pixmap.
-                        geometry = dict(line.split("=", 1) for line in command("xdotool", "getwindowgeometry", "--shell", window).splitlines())
                         menu_capture = str(args.output / f"{theme}-menu.png")
                         command("import", "-window", "root", menu_capture)
-                        command("convert", menu_capture, "-crop", f"{geometry['WIDTH']}x{geometry['HEIGHT']}+{geometry['X']}+{geometry['Y']}", "+repage", menu_capture)
                         command("xdotool", "key", "--clearmodifiers", "Escape")
                         time.sleep(.2)
                         assert command("xdotool", "getwindowfocus") == window, "Escape in menu must keep the launcher open"
