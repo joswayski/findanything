@@ -82,7 +82,8 @@ foreach ($state in @('results', 'empty', 'error')) {
             [NativeSmoke]::SetText($edit, 0xC, 0, '資料🚀') | Out-Null
             Start-Sleep -Milliseconds 150
             $unicode = New-Object Text.StringBuilder 100
-            [NativeSmoke]::GetWindowText($edit, $unicode,100) | Out-Null
+            # GetWindowText cannot read another process's Edit control. WM_GETTEXT can.
+            [NativeSmoke]::ReadItem($edit, 0xD, 100, $unicode) | Out-Null
             Check ($unicode.ToString() -eq '資料🚀') 'Native Edit must preserve Unicode including the surrogate pair'
             Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 0) 'Unicode unmatched query must clear results'
             Capture $h 'windows-unicode'

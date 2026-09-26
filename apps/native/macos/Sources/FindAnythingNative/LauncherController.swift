@@ -14,6 +14,12 @@ final class GraphiteSearchCell: NSSearchFieldCell {
     override func cancelButtonRect(forBounds rect: NSRect) -> NSRect {
         NSRect(x: rect.maxX - 26, y: rect.midY - 8, width: 16, height: 16)
     }
+    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start: Int, length: Int) {
+        super.select(withFrame: searchTextRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, start: start, length: length)
+    }
+    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+        super.edit(withFrame: searchTextRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, event: event)
+    }
 }
 
 final class QueryField: NSSearchField {

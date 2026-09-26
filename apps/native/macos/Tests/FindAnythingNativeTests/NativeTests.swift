@@ -46,6 +46,9 @@ final class NativeTests: XCTestCase {
         XCTAssertTrue(field.isSelectable)
         launcher.showAndFocus()
         let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
+        let origin = field.convert(NSPoint.zero, from: editor)
+        XCTAssertGreaterThanOrEqual(origin.x, 30, "Focused editor must reserve the search icon")
+        XCTAssertGreaterThanOrEqual(origin.y, 8, "Focused editor must be vertically centered")
         editor.insertText("資料🚀", replacementRange: NSRange(location: 0, length: 0))
         XCTAssertEqual(field.stringValue, "資料🚀")
     }
