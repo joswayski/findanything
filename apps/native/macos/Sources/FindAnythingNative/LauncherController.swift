@@ -61,7 +61,8 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
 
     private func buildUI() {
         guard let content = window?.contentView else { return }
-        query.placeholderString = "Find anything…"; query.font = .systemFont(ofSize: 28, weight: .medium); query.delegate = self
+        query.controlSize = .large
+        query.placeholderString = "Find anything…"; query.font = .systemFont(ofSize: NSFont.systemFontSize(for: .large)); query.delegate = self
         query.setAccessibilityLabel("Search applications, settings, and files")
         query.sendsSearchStringImmediately = true; query.translatesAutoresizingMaskIntoConstraints = false
         query.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
@@ -80,7 +81,7 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
             view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -48).isActive = true
         }
         scroll.setContentHuggingPriority(.defaultLow, for: .vertical)
-        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: content.leadingAnchor), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor), stack.topAnchor.constraint(equalTo: content.topAnchor), stack.bottomAnchor.constraint(equalTo: content.bottomAnchor), query.heightAnchor.constraint(equalToConstant: 58), heading.heightAnchor.constraint(equalToConstant: 20), footer.heightAnchor.constraint(equalToConstant: 24), message.heightAnchor.constraint(greaterThanOrEqualToConstant: 0)])
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: content.leadingAnchor), stack.trailingAnchor.constraint(equalTo: content.trailingAnchor), stack.topAnchor.constraint(equalTo: content.topAnchor), stack.bottomAnchor.constraint(equalTo: content.bottomAnchor), query.heightAnchor.constraint(equalToConstant: 32), heading.heightAnchor.constraint(equalToConstant: 20), footer.heightAnchor.constraint(equalToConstant: 24), message.heightAnchor.constraint(greaterThanOrEqualToConstant: 0)])
     }
 
     func controlTextDidChange(_ obj: Notification) { state.resetSelection(); heading.stringValue = query.stringValue.isEmpty ? "APPS & ACTIONS" : "BEST MATCHES"; scheduleSearch() }
