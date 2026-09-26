@@ -105,12 +105,21 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         let app = NSApplication.shared; app.setActivationPolicy(.regular)
         if let index = args.firstIndex(of: "--appearance"), args.indices.contains(index + 1) { app.appearance = NSAppearance(named: args[index + 1] == "light" ? .aqua : .darkAqua) }
         let launcher = LauncherController(worker: nil, fixture: state); launcher.showAndFocus()
-        if let index = args.firstIndex(of: "--screenshot"), args.indices.contains(index + 1), let view = launcher.window?.contentView {
-            app.finishLaunching(); view.layoutSubtreeIfNeeded()
-            let image = view.bitmapImageRepForCachingDisplay(in: view.bounds)!; view.cacheDisplay(in: view.bounds, to: image)
+        if let index = args.firstIndex(of: "--screenshot"), args.indices.contains(index + 1), let window = launcher.window {
+            app.finishLaunching()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+            window.contentView?.layoutSubtreeIfNeeded(); window.displayIfNeeded()
+            // Capture the composited native window, including layer-backed
+            // controls. cacheDisplay omits the search editor and selection.
+            let capture = Process()
+            capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            capture.arguments = ["-x", "-o", "-l", String(window.windowNumber), args[index + 1]]
             do {
-                guard let data = image.representation(using: .png, properties: [:]) else { fatalError("Cannot encode screenshot") }
-                try data.write(to: URL(fileURLWithPath: args[index + 1]))
+                try capture.run()
+                while capture.isRunning {
+                    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+                }
+                guard capture.terminationStatus == 0 else { fatalError("Cannot capture native fixture window") }
             } catch { fatalError("Cannot save screenshot: \(error)") }
             return
         }

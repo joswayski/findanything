@@ -19,7 +19,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryDirectory(prefix="findanything-smoke-") as temporary:
         env = dict(os.environ, HOME=temporary, XDG_DATA_HOME=temporary, XDG_CONFIG_HOME=temporary,
-                   XDG_RUNTIME_DIR=temporary, XDG_DATA_DIRS=temporary, LIBGL_ALWAYS_SOFTWARE="1", GDK_BACKEND="x11", WINIT_UNIX_BACKEND="x11")
+                   XDG_RUNTIME_DIR=temporary, XDG_DATA_DIRS=temporary, LIBGL_ALWAYS_SOFTWARE="1",
+                   GDK_BACKEND="x11", GSK_RENDERER="cairo")
         env.pop("WAYLAND_DISPLAY", None)
         processes = []
         logs = []

@@ -38,7 +38,9 @@ foreach ($state in @('results', 'empty', 'error')) {
         for ($i=0; $i -lt 100; $i++) {
             $process.Refresh()
             Check (!$process.HasExited) "Native process exited before showing $state"
-            if ($process.MainWindowHandle -ne [IntPtr]::Zero) { break }
+            if ($process.MainWindowHandle -ne [IntPtr]::Zero -and
+                [NativeSmoke]::GetDlgItem($process.MainWindowHandle, 101) -ne [IntPtr]::Zero -and
+                [NativeSmoke]::GetDlgItem($process.MainWindowHandle, 102) -ne [IntPtr]::Zero) { break }
             Start-Sleep -Milliseconds 100
         }
         $h = $process.MainWindowHandle
