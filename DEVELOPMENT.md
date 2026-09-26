@@ -53,6 +53,8 @@ python3 -m unittest discover -s apps/native -p 'test_*.py'
 
 `Native CI` builds/tests on macOS ARM64, macOS Intel, Windows x64 and Linux x64. It is not a substitute for physical input/IME, screen-reader, mixed-DPI or Wayland acceptance. The Linux orb cannot compile AppKit or execute Windows binaries.
 
+Successful CI also uploads `unsigned-test-packages-<runner>` artifacts for seven days. These are native test installers, not signed public releases: use disposable profiles, and expect operating-system trust warnings. CI packages locally without installing or publishing a release. Windows uses standard system-colored Win32 controls; custom dark-mode styling is not part of this migration.
+
 Native fixtures never initialize databases, updater hooks, model downloads, single-instance election or global shortcuts:
 
 ```sh

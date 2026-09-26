@@ -19,7 +19,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libgtk-4-dev libx11-dev xvfb xauth xdotool x11-utils openbox imagemagick
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libgtk-4-dev libx11-dev xvfb xauth xdotool x11-utils openbox imagemagick libfuse2 squashfs-tools
       - run: cargo fmt --all -- --check
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -47,6 +47,22 @@ jobs:
           name: native-smoke-${{ matrix.os }}
           path: native-smoke
           if-no-files-found: error
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet tool install --global vpk --version 1.2.158
+      - if: runner.os == 'Windows'
+        run: cargo build --release --locked -p findanything-windows
+      - if: runner.os == 'Linux'
+        run: cargo build --release --locked -p findanything-linux
+      - name: Validate unsigned native packaging (never publishes or installs)
+        run: python apps/native/package.py --version 0.2.${{ github.run_number }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-test-packages-${{ matrix.os }}
+          path: releases/*
+          if-no-files-found: error
+          retention-days: 7
   website:
     runs-on: ubuntu-latest
     steps:
