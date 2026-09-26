@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/findanything-core", "crates/findanything-ffi", "apps/native/linux", "apps/native/windows"]
+resolver = "2"
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.92"
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+strip = "debuginfo"

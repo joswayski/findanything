@@ -1,0 +1,75 @@
+name: Native CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libgtk-4-dev libx11-dev xvfb xauth xdotool x11-utils openbox imagemagick libfuse2 squashfs-tools
+      - run: cargo fmt --all -- --check
+      - run: cargo test --workspace --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: python -m unittest discover -s apps/native -p "test_*.py"
+      - if: runner.os == 'Windows'
+        run: cargo build --locked -p findanything-windows
+      - if: runner.os == 'Windows'
+        run: ./apps/native/windows/smoke.ps1
+      - if: runner.os == 'Linux'
+        run: |
+          cargo build --locked -p findanything-linux --no-default-features
+          python3 apps/native/smoke.py --binary target/debug/findanything --output native-smoke --lifecycle
+      - if: runner.os == 'macOS'
+        run: |
+          bash apps/native/macos/build.sh
+          mkdir -p native-smoke
+          for appearance in light dark; do
+            for state in results empty error; do
+              apps/native/macos/.build/release/FindAnythingNative --fixture "$state" --appearance "$appearance" --screenshot "native-smoke/$appearance-$state.png"
+            done
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-smoke-${{ matrix.os }}
+          path: native-smoke
+          if-no-files-found: error
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet tool install --global vpk --version 1.2.158
+      - if: runner.os == 'Windows'
+        run: cargo build --release --locked -p findanything-windows
+      - if: runner.os == 'Linux'
+        run: cargo build --release --locked -p findanything-linux
+      - name: Validate unsigned native packaging (never publishes or installs)
+        run: python apps/native/package.py --version 0.2.${{ github.run_number }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-test-packages-${{ matrix.os }}
+          path: releases/*
+          if-no-files-found: error
+          retention-days: 7
+  website:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web

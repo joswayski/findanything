@@ -1,0 +1,23 @@
+[package]
+name = "findanything-windows"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "findanything"
+path = "src/main.rs"
+
+[features]
+default = ["semantic"]
+semantic = ["findanything-core/semantic"]
+
+[target.'cfg(windows)'.dependencies]
+findanything-core = { path = "../../../crates/findanything-core", default-features = false }
+
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader",
+  "Win32_UI_Controls", "Win32_UI_HiDpi", "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging"
+] }

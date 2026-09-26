@@ -5,20 +5,28 @@ Find Anything is a local-first desktop launcher for finding applications, system
 [findanyth.ing](https://findanyth.ing)
 
 > [!WARNING]
-> Find Anything is experimental and under active development. macOS is the primary development target.
+> Find Anything is experimental. The browser-free native migration is under development; signed installers and installed-update acceptance are not yet released.
+
+The desktop app uses OS-native controls: AppKit on macOS, Win32 on Windows, and GTK4 on Linux. Search, ranking, local learning, and updates share a Rust core. No Tauri, WebView, egui, JavaScript runtime, or local web server is used by the desktop app. The website remains separate.
 
 ## Features
 
-- Search installed applications, including menu-bar and background apps.
+- Search macOS applications (including menu-bar/background apps), Windows Start Menu shortcuts, and Linux XDG applications.
 - Open system settings with natural queries such as `brightness` or `dark mode`.
 - Learn which result you prefer for a query from what you open.
 - Combine exact, typo-tolerant, and on-device semantic matching.
 - Search personal filenames without prioritizing system and build artifacts.
 - Keep search and usage history on your computer.
 
+Use **⌘⇧Space** on macOS or **Ctrl+Shift+Space** on Windows/X11. On Wayland, configure a desktop shortcut to launch the executable; Escape minimizes rather than making the app unreachable. macOS has a menu-bar entry; Windows/Linux also retain a normal taskbar window.
+
+Native packages are wired to check/download updates automatically and install them on the next launch, with a **Restart to update** action. Publishing is gated on signing setup and platform acceptance. Existing Tauri installations have no updater and need a **one-time native installation**; the local learned-preference database keeps the same location and schema. Model downloads and update requests require network access; searches and usage history are not uploaded.
+
+Current limits: Windows Store-only apps without Start Menu shortcuts are not indexed. Windows/Linux filename search covers standard personal folders, not the whole disk. Physical macOS, Windows and Wayland acceptance remains pending. See [development and release notes](DEVELOPMENT.md).
+
 ## Roadmap
 
-- Windows and Linux application discovery and system actions.
+- Complete native platform acceptance and enable signed Preview releases.
 - Search inside documents with local embeddings and OCR.
 - Search photos by their contents.
 - Optional private sync across computers.

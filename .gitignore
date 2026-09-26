@@ -3,9 +3,12 @@ dist/
 apps/web/dist/
 apps/web/.generated/
 .wrangler/
-src-tauri/target/
-src-tauri/gen/
-src-tauri/.fastembed_cache/
+target/
+apps/native/macos/.build/
+apps/native/macos/.swiftpm/
+releases/
+staging/
+__pycache__/
 .fastembed_cache/
 .amp/portals/*
 .DS_Store
