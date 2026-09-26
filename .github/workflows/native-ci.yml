@@ -19,16 +19,18 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libx11-dev libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libvulkan1 mesa-vulkan-drivers xvfb xauth xdotool x11-utils openbox imagemagick
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libgtk-4-dev libx11-dev xvfb xauth xdotool x11-utils openbox imagemagick
       - run: cargo fmt --all -- --check
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: python -m unittest discover -s apps/native -p "test_*.py"
-      - if: runner.os != 'macOS'
-        run: cargo build --locked -p findanything-desktop
+      - if: runner.os == 'Windows'
+        run: cargo build --locked -p findanything-windows
+      - if: runner.os == 'Windows'
+        run: ./apps/native/windows/smoke.ps1
       - if: runner.os == 'Linux'
         run: |
-          cargo build --locked -p findanything-desktop --no-default-features
+          cargo build --locked -p findanything-linux --no-default-features
           python3 apps/native/smoke.py --binary target/debug/findanything --output native-smoke --lifecycle
       - if: runner.os == 'macOS'
         run: |
@@ -40,7 +42,7 @@ jobs:
             done
           done
       - uses: actions/upload-artifact@v4
-        if: always() && runner.os != 'Windows'
+        if: always()
         with:
           name: native-smoke-${{ matrix.os }}
           path: native-smoke

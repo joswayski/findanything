@@ -12,5 +12,6 @@ if (process.platform === 'darwin') {
   run('bash', ['apps/native/macos/build.sh']);
   if (!build) run('apps/native/macos/.build/release/FindAnythingNative', []);
 } else {
-  run('cargo', [build ? 'build' : 'run', '--locked', '-p', 'findanything-desktop', ...(build ? ['--release'] : [])]);
+  const shell = process.platform === 'win32' ? 'findanything-windows' : 'findanything-linux';
+  run('cargo', [build ? 'build' : 'run', '--locked', '-p', shell, ...(build ? ['--release'] : [])]);
 }

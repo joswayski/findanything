@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/findanything-core", "crates/findanything-ffi", "apps/native/desktop"]
+members = ["crates/findanything-core", "crates/findanything-ffi", "apps/native/linux", "apps/native/windows"]
 resolver = "2"
 
 [workspace.package]

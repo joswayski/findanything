@@ -1,16 +1,16 @@
 # Development
 
-Find Anything has a shared Rust core in `crates/findanything-core`, an AppKit shell in `apps/native/macos`, a Rust/egui/wgpu shell in `apps/native/desktop`, and a static project website in `apps/web`. The small C ABI in `crates/findanything-ffi` is only for AppKit. No desktop web frontend remains.
+Find Anything has a shared Rust core in `crates/findanything-core`, an AppKit shell in `apps/native/macos`, a Rust/Win32 shell in `apps/native/windows`, a Rust/GTK4 shell in `apps/native/linux`, and a static project website in `apps/web`. The small C ABI in `crates/findanything-ffi` is only for AppKit. No desktop web frontend or custom-drawn UI framework remains.
 
 ## Requirements
 
 - Current stable Rust (minimum 1.92), `rustfmt`, and `clippy`.
 - macOS 13+ and Xcode command-line tools for AppKit/SwiftPM.
 - Windows 10/11 x64 with Visual Studio C++ build tools and Windows SDK.
-- Linux x64 with X11 or Wayland, a Vulkan/OpenGL-capable driver, OpenSSL 3, libxkbcommon/X11, and GIO (`gio`). The release build targets Ubuntu 22.04 or compatible newer distributions, not every Linux distribution.
+- Linux x64 with X11 or Wayland, GTK 4.6+, OpenSSL 3, and GIO (`gio`). The release build targets Ubuntu 22.04 or compatible newer distributions, not every Linux distribution.
 - Node.js 24+ for the website and optional `npm` convenience commands; the desktop itself does not need Node.
 
-Debian/Ubuntu prerequisites: `build-essential pkg-config libssl-dev libx11-dev libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libvulkan1 mesa-vulkan-drivers libglib2.0-bin`. Native smoke checks also use `xvfb xauth xdotool x11-utils openbox imagemagick`. `.agents/setup` installs these for orbs; no WebKit packages are required. AppImage packaging additionally requires `squashfs-tools` and `libfuse2`.
+Debian/Ubuntu prerequisites: `build-essential pkg-config libssl-dev libgtk-4-dev libx11-dev libglib2.0-bin`. Native smoke checks also use `xvfb xauth xdotool x11-utils openbox imagemagick`. `.agents/setup` installs these for orbs; no WebKit packages are required. AppImage packaging additionally requires `squashfs-tools` and `libfuse2`.
 
 ## Desktop app
 
@@ -21,7 +21,7 @@ npm run dev
 npm run build
 ```
 
-Without npm, run `cargo run -p findanything-desktop` on Windows/Linux, or `bash apps/native/macos/build.sh` then `apps/native/macos/.build/release/FindAnythingNative` on macOS. The latter always rebuilds the Rust static library; `FINDANYTHING_LIB_DIR` opts into a prebuilt library explicitly.
+Without npm, run `cargo run -p findanything-windows` on Windows, `cargo run -p findanything-linux` on Linux, or `bash apps/native/macos/build.sh` then `apps/native/macos/.build/release/FindAnythingNative` on macOS. The latter always rebuilds the Rust static library; `FINDANYTHING_LIB_DIR` opts into a prebuilt library explicitly. Build the matching shell, not all workspace binaries: the platform crates intentionally share the installed executable name.
 
 The semantic model downloads into the existing `Find Anything/models` cache on first launch. Keyword matching and learned preferences keep working while it downloads or when it is unavailable. Current native packages do not bundle the model. Use `--no-default-features` for keyword-only development/tests without ONNX or model downloads, not as the release build.
 
@@ -31,7 +31,7 @@ Search/activation run on serial workers. Generation checks discard superseded re
 
 macOS uses the existing application metadata and Spotlight paths. Windows indexes `.lnk` shortcuts from user/common Start Menu roots (not Store-only AppsFolder applications). Linux follows XDG desktop-file precedence and visibility and asks GIO to launch files; it does not execute desktop-file command strings through a shell. Windows/Linux filename search caches standard known personal folders for 60 seconds, stops at depth 6 / 20,000 entries / 300 ms between filesystem operations, and skips hidden/build folders and symlinks. These are intentional initial limits, not a whole-disk index. App discovery refreshes at process launch.
 
-macOS uses native controls; Windows/Linux use custom GPU-drawn egui controls with AccessKit. This follows Captures' AppKit + wgpu direction, not a claim that Windows/Linux use WinUI/GTK widgets. Global shortcuts are available on macOS/Windows/X11; Wayland requires a compositor-configured shortcut launching the executable. Re-running the executable forwards focus to the existing instance. Escape/Close hide only with a registered shortcut; otherwise Escape minimizes and Close quits (macOS retains its menu bar). There is no auto-start-at-login registration yet.
+All platforms use native text editing, selection, lists and menus: AppKit, Win32 and GTK4. Captures informed the shared Rust/AppKit split; Find Anything goes further by using native Windows/Linux widgets instead of its experimental wgpu direction. Global shortcuts are available on macOS/Windows/X11; Wayland requires a compositor-configured shortcut launching the executable. Re-running the executable forwards focus to the existing instance. Escape/Close hide only with a registered shortcut; otherwise Escape minimizes and Close quits (macOS retains its menu bar). There is no auto-start-at-login registration yet.
 
 ## Website
 
@@ -56,10 +56,13 @@ python3 -m unittest discover -s apps/native -p 'test_*.py'
 Native fixtures never initialize databases, updater hooks, model downloads, single-instance election or global shortcuts:
 
 ```sh
-cargo build -p findanything-desktop --no-default-features
+cargo build -p findanything-linux --no-default-features
 python3 apps/native/smoke.py --binary target/debug/findanything --output /tmp/findanything-smoke
-# Interactive fixtures, Windows/Linux:
-cargo run -p findanything-desktop --no-default-features -- --fixture empty --theme light
+# Interactive GTK fixtures:
+cargo run -p findanything-linux --no-default-features -- --fixture empty --theme light
+# Win32 fixtures and native-control assertions (PowerShell):
+cargo build -p findanything-windows
+./apps/native/windows/smoke.ps1
 # macOS:
 apps/native/macos/.build/release/FindAnythingNative --fixture results --appearance dark --screenshot /tmp/native-mac.png
 ```

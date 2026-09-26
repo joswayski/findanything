@@ -47,7 +47,7 @@ pub fn discover_applications() -> Vec<Entity> {
         }
     }
 
-    applications.sort_by(|left, right| left.title.to_lowercase().cmp(&right.title.to_lowercase()));
+    applications.sort_by_key(|application| application.title.to_lowercase());
     applications
 }
 

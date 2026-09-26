@@ -30,9 +30,11 @@ jobs:
           dotnet-version: '8.0.x'
       - run: dotnet tool install --global vpk --version 1.2.158
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libx11-dev libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libfuse2 squashfs-tools
-      - if: runner.os != 'macOS'
-        run: cargo build --release --locked -p findanything-desktop
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libgtk-4-dev libx11-dev libfuse2 squashfs-tools
+      - if: runner.os == 'Linux'
+        run: cargo build --release --locked -p findanything-linux
+      - if: runner.os == 'Windows'
+        run: cargo build --release --locked -p findanything-windows
       - if: runner.os == 'macOS'
         run: bash apps/native/macos/build.sh
       - name: Import Apple signing identities and notarization profile

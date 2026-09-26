@@ -7,7 +7,7 @@ Find Anything is a local-first desktop launcher for finding applications, system
 > [!WARNING]
 > Find Anything is experimental. The browser-free native migration is under development; signed installers and installed-update acceptance are not yet released.
 
-The desktop app uses AppKit on macOS and Rust/egui with native GPU rendering on Windows and Linux. Search, ranking, local learning, and updates share a Rust core. No Tauri, WebView, JavaScript runtime, or local web server is used by the desktop app. The website remains separate.
+The desktop app uses OS-native controls: AppKit on macOS, Win32 on Windows, and GTK4 on Linux. Search, ranking, local learning, and updates share a Rust core. No Tauri, WebView, egui, JavaScript runtime, or local web server is used by the desktop app. The website remains separate.
 
 ## Features
 
