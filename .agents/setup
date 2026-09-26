@@ -37,13 +37,21 @@ install_system_packages() {
 		build-essential
 		curl
 		file
-		libayatana-appindicator3-dev
 		libssl-dev
-		libwebkit2gtk-4.1-dev
-		librsvg2-dev
-		libxdo-dev
-		patchelf
-		wget
+		pkg-config
+		libx11-dev
+		libxkbcommon-dev
+		libxkbcommon-x11-0
+		libwayland-dev
+		libvulkan1
+		mesa-vulkan-drivers
+		xvfb
+		xauth
+		xdotool
+		x11-utils
+		openbox
+		libglib2.0-bin
+		imagemagick
 	)
 	local missing=()
 	local package status
@@ -55,7 +63,7 @@ install_system_packages() {
 	done
 
 	if ((${#missing[@]} == 0)); then
-		echo 'Tauri system build prerequisites are already installed.'
+		echo 'Native desktop build and smoke-test prerequisites are already installed.'
 		return
 	fi
 
@@ -94,9 +102,9 @@ install_rust_toolchain() {
 }
 
 run_step 'Check Node.js toolchain' check_node
-run_step 'Install Tauri system prerequisites' install_system_packages
+run_step 'Install native desktop prerequisites' install_system_packages
 run_step 'Install Rust toolchain' install_rust_toolchain
 run_step 'Install JavaScript workspace dependencies' npm install --no-save --no-audit --no-fund
-run_step 'Fetch locked Rust dependencies' cargo fetch --locked --manifest-path src-tauri/Cargo.toml
+run_step 'Fetch locked Rust dependencies' cargo fetch --locked
 
 printf '\nOrb setup complete for %s.\n' "$repo_root"

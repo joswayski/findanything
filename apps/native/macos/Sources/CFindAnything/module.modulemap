@@ -1,0 +1,4 @@
+module CFindAnything [system] {
+  header "../../../../../crates/findanything-ffi/include/findanything.h"
+  export *
+}

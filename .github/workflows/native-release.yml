@@ -1,0 +1,112 @@
+name: Native Preview release
+on:
+  workflow_run:
+    workflows: [Native CI]
+    branches: [main]
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: native-preview-release
+  cancel-in-progress: false
+jobs:
+  package:
+    # Enable only after signed two-version installed-update acceptance on every OS.
+    if: vars.NATIVE_RELEASES_ENABLED == 'true' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    environment: native-release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet tool install --global vpk --version 1.2.158
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libx11-dev libxkbcommon-dev libxkbcommon-x11-0 libwayland-dev libfuse2 squashfs-tools
+      - if: runner.os != 'macOS'
+        run: cargo build --release --locked -p findanything-desktop
+      - if: runner.os == 'macOS'
+        run: bash apps/native/macos/build.sh
+      - name: Import Apple signing identities and notarization profile
+        if: runner.os == 'macOS'
+        env:
+          P12_BASE64: ${{ secrets.APPLE_CERTIFICATES_BASE64 }}
+          P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATES_PASSWORD }}
+          API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          set -euo pipefail
+          test -n "$P12_BASE64" && test -n "$API_KEY_BASE64"
+          KEYCHAIN="$RUNNER_TEMP/findanything.keychain-db"
+          PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::$PASSWORD"
+          printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/certificates.p12"
+          printf '%s' "$API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/certificates.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/productsign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          xcrun notarytool store-credentials findanything-release --key "$RUNNER_TEMP/notary.p8" --key-id "$API_KEY_ID" --issuer "$API_ISSUER"
+          rm "$RUNNER_TEMP/certificates.p12" "$RUNNER_TEMP/notary.p8"
+      - name: Import Windows signing certificate
+        if: runner.os == 'Windows'
+        env:
+          CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        shell: pwsh
+        run: |
+          if (!$env:CERTIFICATE) { throw 'Windows signing certificate required' }
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERTIFICATE))
+          $password = ConvertTo-SecureString $env:PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -Password $password -CertStoreLocation Cert:\CurrentUser\My
+          "WINDOWS_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+          Remove-Item $pfx
+      - name: Package signed native Preview
+        env:
+          APPLE_APP_IDENTITY: ${{ vars.APPLE_APP_IDENTITY }}
+          APPLE_INSTALLER_IDENTITY: ${{ vars.APPLE_INSTALLER_IDENTITY }}
+          RELEASE_NUMBER: ${{ github.event.workflow_run.run_number }}
+        run: python apps/native/package.py --signed --version 0.2.${{ env.RELEASE_NUMBER }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: releases/*
+          if-no-files-found: error
+      - if: always() && runner.os == 'macOS'
+        run: security delete-keychain "$RUNNER_TEMP/findanything.keychain-db" || true
+  publish:
+    needs: package
+    environment: native-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          merge-multiple: true
+          path: releases
+      - name: Publish all platform feeds together
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          VERSION: 0.2.${{ github.event.workflow_run.run_number }}
+        run: |
+          set -euo pipefail
+          TAG="native-v$VERSION"
+          gh release create "$TAG" --target "$SHA" --draft --prerelease --title "Native Preview $VERSION" --notes "Experimental native build. Automatic updates apply on next launch. See DEVELOPMENT.md for platform limits."
+          gh release upload "$TAG" releases/*
+          gh release edit "$TAG" --draft=false --prerelease --latest=false

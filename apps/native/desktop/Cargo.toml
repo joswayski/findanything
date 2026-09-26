@@ -1,0 +1,23 @@
+[package]
+name = "findanything-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "findanything"
+path = "src/main.rs"
+
+[features]
+default = ["semantic"]
+semantic = ["findanything-core/semantic"]
+
+[dependencies]
+eframe = { version = "0.33", default-features = false, features = ["wgpu", "x11", "wayland", "accesskit", "default_fonts"] }
+# eframe's wgpu feature does not select a native graphics backend.
+wgpu = { version = "27", default-features = false, features = ["vulkan", "gles", "dx12", "metal", "wgsl"] }
+findanything-core = { path = "../../../crates/findanything-core", default-features = false }
+
+[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+global-hotkey = "0.7"
