@@ -143,7 +143,7 @@ fn fixture_response(fixture: Fixture) -> SearchResponse {
                 id: "fixture:file".into(),
                 kind: EntityKind::File,
                 title: "Project notes.md".into(),
-                subtitle: "Documents".into(),
+                subtitle: "~/Documents".into(),
                 score: 80.0,
                 reason: "Filename match".into(),
             },
@@ -171,15 +171,34 @@ mod win {
         UI::{Controls::*, HiDpi::*, Input::KeyboardAndMouse::*, WindowsAndMessaging::*},
     };
 
+    #[allow(dead_code)]
+    mod graphite {
+        include!("../../design/graphite.rs");
+    }
+
     const EDIT: i32 = 101;
     const LIST: i32 = 102;
     const STATUS: i32 = 103;
     const RETRY: i32 = 104;
+    const SECTION: i32 = 105;
+    const MESSAGE: i32 = 106;
+    const SHORTCUTS: i32 = 107;
+    const MENU_BUTTON: i32 = 108;
     const MENU_CHECK: usize = 201;
     const MENU_RESTART: usize = 202;
     const MENU_QUIT: usize = 203;
     const HOTKEY: i32 = 1;
     const TIMER: usize = 1;
+    const STATIC_CENTER: u32 = 1;
+    const STATIC_RIGHT: u32 = 2;
+    const HIGH_CONTRAST_ON: u32 = 1;
+
+    #[repr(C)]
+    struct HighContrast {
+        size: u32,
+        flags: u32,
+        default_scheme: *mut u16,
+    }
 
     struct App {
         hwnd: HWND,
@@ -187,6 +206,10 @@ mod win {
         list: HWND,
         status: HWND,
         retry: HWND,
+        section: HWND,
+        message: HWND,
+        shortcuts: HWND,
+        menu_button: HWND,
         response: SearchResponse,
         query: String,
         generation: u64,
@@ -199,12 +222,45 @@ mod win {
         hotkey: bool,
         quitting: bool,
         font: HFONT,
+        title_font: HFONT,
+        metadata_font: HFONT,
+        brushes: [HBRUSH; 4],
+        popup: HMENU,
+        high_contrast: bool,
         last_warming_poll: Instant,
+    }
+    impl Drop for App {
+        fn drop(&mut self) {
+            unsafe {
+                for object in [self.font, self.title_font, self.metadata_font]
+                    .into_iter()
+                    .chain(self.brushes)
+                {
+                    if !object.is_null() {
+                        DeleteObject(object);
+                    }
+                }
+                if !self.popup.is_null() {
+                    DestroyMenu(self.popup);
+                }
+            }
+        }
     }
     impl App {
         fn request_search(&mut self) {
             self.generation += 1;
             self.pending = true;
+            unsafe {
+                SetWindowTextW(
+                    self.section,
+                    wide(if self.query.is_empty() {
+                        "Apps & actions"
+                    } else {
+                        "Best matches"
+                    })
+                    .as_ptr(),
+                );
+            }
             if let Some(worker) = &self.worker {
                 worker.search(self.generation, self.query.clone());
             } else if let Some(f) = self.fixture {
@@ -238,13 +294,24 @@ mod win {
                 if !self.response.results.is_empty() {
                     SendMessageW(self.list, LB_SETCURSEL, 0, 0);
                 }
-                self.set_status(if self.fixture == Some(Fixture::Error) {
-                    "Search hit a snag. Deterministic fixture error"
+                let message = if self.fixture == Some(Fixture::Error) {
+                    "Search hit a snag.\r\nDeterministic fixture error"
                 } else if self.response.results.is_empty() {
-                    "No local matches yet. Try an app, setting, or filename."
+                    "No local matches yet.\r\nTry an app, a setting, or a filename."
                 } else {
-                    "Up/Down Navigate   Enter Open   Esc Hide"
+                    ""
+                };
+                SetWindowTextW(self.message, wide(message).as_ptr());
+                ShowWindow(
+                    self.message,
+                    if message.is_empty() { SW_HIDE } else { SW_SHOW },
+                );
+                self.set_status(match self.response.semantic_status.as_str() {
+                    "ready" => "Semantic ready",
+                    "unavailable" => "Keyword mode",
+                    _ => "Preparing index",
                 });
+                InvalidateRect(self.list, null(), 1);
             }
         }
         unsafe fn set_status(&self, text: &str) {
@@ -306,11 +373,17 @@ mod win {
                         a.dismiss();
                         return true;
                     }
-                    WM_KEYDOWN if wp as u16 == VK_RETURN => {
+                    WM_KEYDOWN
+                        if wp as u16 == VK_RETURN
+                            && (GetFocus() == a.edit || GetFocus() == a.list) =>
+                    {
                         a.activate();
                         return true;
                     }
-                    WM_KEYDOWN if wp as u16 == VK_DOWN || wp as u16 == VK_UP => {
+                    WM_KEYDOWN
+                        if (wp as u16 == VK_DOWN || wp as u16 == VK_UP)
+                            && (GetFocus() == a.edit || GetFocus() == a.list) =>
+                    {
                         let count = a.response.results.len();
                         if count > 0 {
                             let old = SendMessageW(a.list, LB_GETCURSEL, 0, 0).max(0) as usize;
@@ -320,6 +393,7 @@ mod win {
                                 old.saturating_sub(1)
                             };
                             SendMessageW(a.list, LB_SETCURSEL, next, 0);
+                            InvalidateRect(a.list, null(), 0);
                         }
                         return true;
                     }
@@ -327,6 +401,95 @@ mod win {
                 }
             }
             false
+        }
+    }
+
+    const fn colorref(rgb: u32) -> COLORREF {
+        ((rgb & 0xff) << 16) | (rgb & 0xff00) | ((rgb >> 16) & 0xff)
+    }
+    fn scale(value: i32, dpi: i32) -> i32 {
+        value * dpi / 96
+    }
+    unsafe fn make_font(dpi: i32, points: i32, weight: i32) -> HFONT {
+        unsafe {
+            CreateFontW(
+                -points * dpi / 96,
+                0,
+                0,
+                0,
+                weight,
+                0,
+                0,
+                0,
+                DEFAULT_CHARSET as u32,
+                OUT_DEFAULT_PRECIS as u32,
+                CLIP_DEFAULT_PRECIS as u32,
+                CLEARTYPE_QUALITY as u32,
+                DEFAULT_PITCH as u32,
+                wide("Segoe UI").as_ptr(),
+            )
+        }
+    }
+    unsafe fn apply_fonts(a: &mut App, dpi: i32) {
+        unsafe {
+            for font in [a.font, a.title_font, a.metadata_font] {
+                if !font.is_null() {
+                    DeleteObject(font);
+                }
+            }
+            a.font = make_font(dpi, graphite::BODY_SIZE, FW_NORMAL as i32);
+            a.title_font = make_font(dpi, graphite::BODY_SIZE, FW_SEMIBOLD as i32);
+            a.metadata_font = make_font(dpi, graphite::METADATA_SIZE, FW_NORMAL as i32);
+            for control in [a.edit, a.message, a.retry, a.menu_button] {
+                if !control.is_null() {
+                    SendMessageW(control, WM_SETFONT, a.font as usize, 1);
+                }
+            }
+            for control in [a.section, a.status, a.shortcuts] {
+                if !control.is_null() {
+                    SendMessageW(control, WM_SETFONT, a.metadata_font as usize, 1);
+                }
+            }
+            if !a.list.is_null() {
+                SendMessageW(a.list, WM_SETFONT, a.font as usize, 1);
+                SendMessageW(
+                    a.list,
+                    LB_SETITEMHEIGHT,
+                    0,
+                    scale(graphite::ROW_HEIGHT, dpi) as isize,
+                );
+            }
+        }
+    }
+    unsafe fn draw_icon(dc: HDC, kind: EntityKind, x: i32, y: i32, size: i32, color: COLORREF) {
+        unsafe {
+            let pen = CreatePen(PS_SOLID, (size / 10).max(1), color);
+            let old = SelectObject(dc, pen);
+            let old_brush = SelectObject(dc, GetStockObject(NULL_BRUSH));
+            let p = size / 5;
+            match kind {
+                EntityKind::Application => {
+                    Rectangle(dc, x + p, y + p, x + size - p, y + size - p);
+                    MoveToEx(dc, x + p, y + size * 2 / 5, null_mut());
+                    LineTo(dc, x + size - p, y + size * 2 / 5);
+                }
+                EntityKind::File => {
+                    MoveToEx(dc, x + p, y + p, null_mut());
+                    LineTo(dc, x + size * 3 / 5, y + p);
+                    LineTo(dc, x + size - p, y + size * 2 / 5);
+                    LineTo(dc, x + size - p, y + size - p);
+                    LineTo(dc, x + p, y + size - p);
+                    LineTo(dc, x + p, y + p);
+                }
+                _ => {
+                    Ellipse(dc, x + p, y + p, x + size - p, y + size - p);
+                    MoveToEx(dc, x + size / 2, y, null_mut());
+                    LineTo(dc, x + size / 2, y + p * 2);
+                }
+            }
+            SelectObject(dc, old_brush);
+            SelectObject(dc, old);
+            DeleteObject(pen);
         }
     }
 
@@ -345,18 +508,85 @@ mod win {
                         let w = (lp as u32 & 0xffff) as i32;
                         let h = ((lp as u32 >> 16) & 0xffff) as i32;
                         let dpi = GetDpiForWindow(hwnd) as i32;
-                        let s = |v| v * dpi / 96;
-                        MoveWindow(a.edit, s(12), s(12), w - s(24), s(34), 1);
-                        MoveWindow(a.list, s(12), s(54), w - s(24), (h - s(96)).max(s(40)), 1);
-                        MoveWindow(a.status, s(12), h - s(34), w - s(110), s(22), 1);
-                        MoveWindow(a.retry, w - s(90), h - s(38), s(78), s(26), 1);
+                        let s = |v| scale(v, dpi);
+                        let inset = s(graphite::INSET);
+                        let search_y = inset;
+                        MoveWindow(
+                            a.edit,
+                            inset + s(12),
+                            search_y + s(12),
+                            w - inset * 2 - s(72),
+                            s(20),
+                            1,
+                        );
+                        MoveWindow(
+                            a.menu_button,
+                            w - inset - s(36),
+                            search_y + s(2),
+                            s(34),
+                            s(36),
+                            1,
+                        );
+                        let section_y = search_y + s(graphite::SEARCH_HEIGHT + graphite::GAP);
+                        MoveWindow(
+                            a.section,
+                            inset,
+                            section_y,
+                            w - inset * 2,
+                            s(graphite::SECTION_HEIGHT),
+                            1,
+                        );
+                        let list_y = section_y + s(graphite::SECTION_HEIGHT + graphite::GAP);
+                        let footer_y = h - inset - s(graphite::FOOTER_HEIGHT);
+                        MoveWindow(
+                            a.list,
+                            inset,
+                            list_y,
+                            w - inset * 2,
+                            (footer_y - s(graphite::GAP) - list_y).max(s(graphite::ROW_HEIGHT)),
+                            1,
+                        );
+                        MoveWindow(
+                            a.message,
+                            inset,
+                            list_y + (footer_y - list_y) / 2 - s(22),
+                            w - inset * 2,
+                            s(44),
+                            1,
+                        );
+                        MoveWindow(
+                            a.status,
+                            inset,
+                            footer_y,
+                            (w / 2 - inset).max(1),
+                            s(graphite::FOOTER_HEIGHT),
+                            1,
+                        );
+                        MoveWindow(
+                            a.shortcuts,
+                            w / 2,
+                            footer_y,
+                            (w / 2 - inset).max(1),
+                            s(graphite::FOOTER_HEIGHT),
+                            1,
+                        );
+                        MoveWindow(
+                            a.retry,
+                            w / 2 - s(40),
+                            list_y + (footer_y - list_y) / 2 + s(32),
+                            s(80),
+                            s(28),
+                            1,
+                        );
+                        InvalidateRect(a.list, null(), 0);
+                        InvalidateRect(hwnd, null(), 1);
                     }
                 }
                 WM_GETMINMAXINFO => {
                     let info = &mut *(lp as *mut MINMAXINFO);
                     let dpi = GetDpiForWindow(hwnd).max(96) as i32;
-                    info.ptMinTrackSize.x = 640 * dpi / 96;
-                    info.ptMinTrackSize.y = 420 * dpi / 96;
+                    info.ptMinTrackSize.x = scale(graphite::MINIMUM_WIDTH, dpi);
+                    info.ptMinTrackSize.y = scale(graphite::MINIMUM_HEIGHT, dpi);
                 }
                 WM_DPICHANGED => {
                     let r = &*(lp as *const RECT);
@@ -369,6 +599,232 @@ mod win {
                         r.bottom - r.top,
                         SWP_NOACTIVATE | SWP_NOZORDER,
                     );
+                    if let Some(mut a) = app(hwnd) {
+                        apply_fonts(&mut a, GetDpiForWindow(hwnd) as i32);
+                    }
+                }
+                WM_ERASEBKGND => return 1,
+                WM_PAINT => {
+                    let mut ps: PAINTSTRUCT = std::mem::zeroed();
+                    let dc = BeginPaint(hwnd, &mut ps);
+                    if let Some(a) = app(hwnd) {
+                        let mut r: RECT = std::mem::zeroed();
+                        GetClientRect(hwnd, &mut r);
+                        FillRect(
+                            dc,
+                            &r,
+                            if a.high_contrast {
+                                GetSysColorBrush(COLOR_WINDOW)
+                            } else {
+                                a.brushes[0]
+                            },
+                        );
+                        if !a.high_contrast {
+                            let dpi = GetDpiForWindow(hwnd) as i32;
+                            let s = |v| scale(v, dpi);
+                            let focused = GetFocus() == a.edit;
+                            let pen = CreatePen(
+                                PS_SOLID,
+                                s(if focused { 2 } else { 1 }),
+                                colorref(if focused {
+                                    graphite::ACCENT
+                                } else {
+                                    graphite::BORDER_STRONG
+                                }),
+                            );
+                            let old_pen = SelectObject(dc, pen);
+                            let old_brush = SelectObject(dc, a.brushes[2]);
+                            RoundRect(
+                                dc,
+                                s(graphite::INSET),
+                                s(graphite::INSET),
+                                r.right - s(graphite::INSET),
+                                s(graphite::INSET + graphite::SEARCH_HEIGHT),
+                                s(graphite::RADIUS),
+                                s(graphite::RADIUS),
+                            );
+                            SelectObject(dc, old_brush);
+                            SelectObject(dc, old_pen);
+                            DeleteObject(pen);
+                        }
+                    }
+                    EndPaint(hwnd, &ps);
+                    return 0;
+                }
+                WM_CTLCOLOREDIT | WM_CTLCOLORSTATIC | WM_CTLCOLORLISTBOX | WM_CTLCOLORBTN => {
+                    if let Some(a) = app(hwnd) {
+                        let dc = wp as HDC;
+                        if a.high_contrast {
+                            return DefWindowProcW(hwnd, msg, wp, lp);
+                        }
+                        SetTextColor(
+                            dc,
+                            colorref(
+                                if lp as HWND == a.message
+                                    && (a.fixture == Some(Fixture::Error)
+                                        || IsWindowVisible(a.retry) != 0)
+                                {
+                                    graphite::DANGER
+                                } else if lp as HWND == a.status
+                                    || lp as HWND == a.shortcuts
+                                    || lp as HWND == a.section
+                                    || lp as HWND == a.message
+                                {
+                                    graphite::MUTED
+                                } else {
+                                    graphite::TEXT
+                                },
+                            ),
+                        );
+                        SetBkColor(
+                            dc,
+                            colorref(if lp as HWND == a.edit {
+                                graphite::CONTROL
+                            } else {
+                                graphite::BG
+                            }),
+                        );
+                        SetBkMode(dc, TRANSPARENT as i32);
+                        return if lp as HWND == a.edit || lp as HWND == a.menu_button {
+                            a.brushes[2]
+                        } else {
+                            a.brushes[0]
+                        } as isize;
+                    }
+                }
+                WM_DRAWITEM => {
+                    let d = &*(lp as *const DRAWITEMSTRUCT);
+                    if (d.CtlID == MENU_BUTTON as u32 || d.CtlID == RETRY as u32)
+                        && let Some(a) = app(hwnd)
+                    {
+                        FillRect(
+                            d.hDC,
+                            &d.rcItem,
+                            if a.high_contrast {
+                                GetSysColorBrush(COLOR_BTNFACE)
+                            } else {
+                                a.brushes[2]
+                            },
+                        );
+                        SetBkMode(d.hDC, TRANSPARENT as i32);
+                        SetTextColor(
+                            d.hDC,
+                            if a.high_contrast {
+                                GetSysColor(COLOR_BTNTEXT)
+                            } else {
+                                colorref(graphite::SECONDARY)
+                            },
+                        );
+                        SelectObject(d.hDC, a.font);
+                        let mut r = d.rcItem;
+                        DrawTextW(
+                            d.hDC,
+                            wide(if d.CtlID == RETRY as u32 {
+                                "Retry"
+                            } else {
+                                "≡"
+                            })
+                            .as_ptr(),
+                            -1,
+                            &mut r,
+                            DT_SINGLELINE | DT_CENTER | DT_VCENTER,
+                        );
+                        if d.itemState & ODS_FOCUS != 0 {
+                            DrawFocusRect(d.hDC, &r);
+                        }
+                        return 1;
+                    }
+                    if d.CtlID == LIST as u32
+                        && d.itemID != u32::MAX
+                        && let Some(a) = app(hwnd)
+                    {
+                        let selected = d.itemState & ODS_SELECTED != 0;
+                        let bg = if a.high_contrast {
+                            GetSysColorBrush(if selected {
+                                COLOR_HIGHLIGHT
+                            } else {
+                                COLOR_WINDOW
+                            })
+                        } else if selected {
+                            a.brushes[3]
+                        } else {
+                            a.brushes[0]
+                        };
+                        FillRect(d.hDC, &d.rcItem, bg);
+                        if let Some(item) = a.response.results.get(d.itemID as usize) {
+                            let dpi = GetDpiForWindow(hwnd) as i32;
+                            let s = |v| scale(v, dpi);
+                            if selected && !a.high_contrast {
+                                let edge = RECT {
+                                    left: d.rcItem.left,
+                                    top: d.rcItem.top,
+                                    right: d.rcItem.left + s(2),
+                                    bottom: d.rcItem.bottom,
+                                };
+                                let brush = CreateSolidBrush(colorref(graphite::ACCENT));
+                                FillRect(d.hDC, &edge, brush);
+                                DeleteObject(brush);
+                            }
+                            SetBkMode(d.hDC, TRANSPARENT as i32);
+                            let icon_x = d.rcItem.left + s(12);
+                            let icon_y = d.rcItem.top
+                                + (d.rcItem.bottom - d.rcItem.top - s(graphite::ICON_SIZE)) / 2;
+                            let primary = if a.high_contrast {
+                                GetSysColor(if selected {
+                                    COLOR_HIGHLIGHTTEXT
+                                } else {
+                                    COLOR_WINDOWTEXT
+                                })
+                            } else {
+                                colorref(graphite::TEXT_STRONG)
+                            };
+                            let secondary = if a.high_contrast {
+                                primary
+                            } else {
+                                colorref(graphite::MUTED)
+                            };
+                            draw_icon(
+                                d.hDC,
+                                item.kind,
+                                icon_x,
+                                icon_y,
+                                s(graphite::ICON_SIZE),
+                                secondary,
+                            );
+                            let left = icon_x + s(graphite::ICON_SIZE + 12);
+                            let mut title = RECT {
+                                left,
+                                top: d.rcItem.top + s(12),
+                                right: d.rcItem.right - s(8),
+                                bottom: d.rcItem.bottom,
+                            };
+                            SelectObject(d.hDC, a.title_font);
+                            SetTextColor(d.hDC, primary);
+                            DrawTextW(
+                                d.hDC,
+                                wide(&item.title).as_ptr(),
+                                -1,
+                                &mut title,
+                                DT_SINGLELINE | DT_END_ELLIPSIS,
+                            );
+                            let mut sub = RECT {
+                                left,
+                                top: d.rcItem.top + s(29),
+                                right: d.rcItem.right - s(8),
+                                bottom: d.rcItem.bottom,
+                            };
+                            SelectObject(d.hDC, a.metadata_font);
+                            SetTextColor(d.hDC, secondary);
+                            DrawTextW(
+                                d.hDC,
+                                wide(&format!("{} · {}", item.subtitle, item.reason)).as_ptr(),
+                                -1,
+                                &mut sub,
+                                DT_SINGLELINE | DT_END_ELLIPSIS,
+                            );
+                        }
+                        return 1;
+                    }
                 }
                 WM_COMMAND => {
                     if let Some(mut a) = app(hwnd) {
@@ -380,11 +836,32 @@ mod win {
                             GetWindowTextW(a.edit, text.as_mut_ptr(), text.len() as i32);
                             a.query = from_wide(&text);
                             a.request_search();
+                        } else if id == EDIT
+                            && (notify == EN_SETFOCUS as u16 || notify == EN_KILLFOCUS as u16)
+                        {
+                            InvalidateRect(hwnd, null(), 0);
                         } else if id == LIST && notify == LBN_SELCHANGE as u16 {
                             a.activate();
                         } else if id == RETRY {
                             a.worker = Some(Worker::spawn());
                             a.request_search();
+                        } else if id == MENU_BUTTON {
+                            let mut r: RECT = std::mem::zeroed();
+                            GetWindowRect(a.menu_button, &mut r);
+                            let popup = a.popup;
+                            drop(a); // Popup loops dispatch paint and command messages reentrantly.
+                            let command = TrackPopupMenu(
+                                popup,
+                                TPM_RIGHTALIGN | TPM_TOPALIGN | TPM_RETURNCMD,
+                                r.right,
+                                r.bottom,
+                                0,
+                                hwnd,
+                                null(),
+                            );
+                            if command != 0 {
+                                PostMessageW(hwnd, WM_COMMAND, command as usize, 0);
+                            }
                         } else if id as usize == MENU_CHECK {
                             findanything_core::updates::check();
                         } else if id as usize == MENU_RESTART {
@@ -426,6 +903,11 @@ mod win {
                                 Reply::Error(g, e) if g == a.generation => {
                                     a.pending = false;
                                     a.set_status(&e);
+                                    SetWindowTextW(
+                                        a.message,
+                                        wide(&format!("Search hit a snag\r\n{e}")).as_ptr(),
+                                    );
+                                    ShowWindow(a.message, SW_SHOW);
                                     ShowWindow(a.retry, SW_SHOW);
                                 }
                                 Reply::Activated(g, result) if g == a.generation => {
@@ -448,9 +930,8 @@ mod win {
                             a.request_search();
                         }
                         let update = findanything_core::updates::status();
-                        let menu = GetMenu(hwnd);
                         EnableMenuItem(
-                            menu,
+                            a.popup,
                             MENU_CHECK as u32,
                             MF_BYCOMMAND
                                 | if a.fixture.is_none() {
@@ -460,7 +941,7 @@ mod win {
                                 },
                         );
                         EnableMenuItem(
-                            menu,
+                            a.popup,
                             MENU_RESTART as u32,
                             MF_BYCOMMAND
                                 | if update.state == "ready" && a.fixture.is_none() {
@@ -505,19 +986,29 @@ mod win {
                 lpfnWndProc: Some(window_proc),
                 hInstance: module,
                 hCursor: LoadCursorW(null_mut(), IDC_ARROW),
-                hbrBackground: (COLOR_WINDOW as isize + 1) as HBRUSH,
+                hbrBackground: null_mut(),
                 lpszClassName: class.as_ptr(),
                 ..std::mem::zeroed()
             };
             if RegisterClassW(&wc) == 0 {
                 return Err("Cannot register native window".into());
             }
+            let mut hc: HighContrast = std::mem::zeroed();
+            hc.size = std::mem::size_of::<HighContrast>() as u32;
+            let high_contrast =
+                SystemParametersInfoW(SPI_GETHIGHCONTRAST, hc.size, &mut hc as *mut _ as _, 0) != 0
+                    && hc.flags & HIGH_CONTRAST_ON != 0;
+            let popup = CreatePopupMenu();
             let mut state = Box::new(RefCell::new(App {
                 hwnd: null_mut(),
                 edit: null_mut(),
                 list: null_mut(),
                 status: null_mut(),
                 retry: null_mut(),
+                section: null_mut(),
+                message: null_mut(),
+                shortcuts: null_mut(),
+                menu_button: null_mut(),
                 response: fixture_response(Fixture::Empty),
                 query: String::new(),
                 generation: 0,
@@ -530,16 +1021,33 @@ mod win {
                 hotkey: false,
                 quitting: false,
                 font: null_mut(),
+                title_font: null_mut(),
+                metadata_font: null_mut(),
+                brushes: [
+                    CreateSolidBrush(colorref(graphite::BG)),
+                    CreateSolidBrush(colorref(graphite::CHROME)),
+                    CreateSolidBrush(colorref(graphite::CONTROL)),
+                    CreateSolidBrush(colorref(graphite::SELECTED)),
+                ],
+                popup,
+                high_contrast,
                 last_warming_poll: Instant::now(),
             }));
             let dpi = GetDpiForSystem() as i32;
-            let width = 760 * dpi / 96;
-            let height = 570 * dpi / 96;
+            let mut window_rect = RECT {
+                left: 0,
+                top: 0,
+                right: scale(graphite::WINDOW_WIDTH, dpi),
+                bottom: scale(graphite::WINDOW_HEIGHT, dpi),
+            };
+            AdjustWindowRectExForDpi(&mut window_rect, WS_OVERLAPPEDWINDOW, 0, 0, dpi as u32);
+            let width = window_rect.right - window_rect.left;
+            let height = window_rect.bottom - window_rect.top;
             let hwnd = CreateWindowExW(
                 0,
                 class.as_ptr(),
                 wide("Find Anything").as_ptr(),
-                WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPCHILDREN,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
                 width,
@@ -554,25 +1062,8 @@ mod win {
             }
             let mut state_ref = state.borrow_mut();
             let state = &mut *state_ref;
-            let font = CreateFontW(
-                -16 * dpi / 96,
-                0,
-                0,
-                0,
-                FW_NORMAL as i32,
-                0,
-                0,
-                0,
-                DEFAULT_CHARSET as u32,
-                OUT_DEFAULT_PRECIS as u32,
-                CLIP_DEFAULT_PRECIS as u32,
-                CLEARTYPE_QUALITY as u32,
-                DEFAULT_PITCH as u32,
-                wide("Segoe UI").as_ptr(),
-            );
-            state.font = font;
             state.edit = CreateWindowExW(
-                WS_EX_CLIENTEDGE,
+                0,
                 wide("EDIT").as_ptr(),
                 null(),
                 WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL as u32,
@@ -592,7 +1083,7 @@ mod win {
                 wide("Find anything…").as_ptr() as isize,
             );
             state.list = CreateWindowExW(
-                WS_EX_CLIENTEDGE,
+                0,
                 wide("LISTBOX").as_ptr(),
                 null(),
                 WS_CHILD
@@ -600,7 +1091,9 @@ mod win {
                     | WS_TABSTOP
                     | WS_VSCROLL
                     | LBS_NOTIFY as u32
-                    | LBS_NOINTEGRALHEIGHT as u32,
+                    | LBS_NOINTEGRALHEIGHT as u32
+                    | LBS_OWNERDRAWFIXED as u32
+                    | LBS_HASSTRINGS as u32,
                 0,
                 0,
                 0,
@@ -624,11 +1117,67 @@ mod win {
                 module,
                 null(),
             );
+            state.section = CreateWindowExW(
+                0,
+                wide("STATIC").as_ptr(),
+                wide("Apps & actions").as_ptr(),
+                WS_CHILD | WS_VISIBLE,
+                0,
+                0,
+                0,
+                0,
+                hwnd,
+                SECTION as _,
+                module,
+                null(),
+            );
+            state.message = CreateWindowExW(
+                0,
+                wide("STATIC").as_ptr(),
+                null(),
+                WS_CHILD | STATIC_CENTER,
+                0,
+                0,
+                0,
+                0,
+                hwnd,
+                MESSAGE as _,
+                module,
+                null(),
+            );
+            state.shortcuts = CreateWindowExW(
+                0,
+                wide("STATIC").as_ptr(),
+                wide("↑/↓ Navigate   Enter Open   Esc Close").as_ptr(),
+                WS_CHILD | WS_VISIBLE | STATIC_RIGHT,
+                0,
+                0,
+                0,
+                0,
+                hwnd,
+                SHORTCUTS as _,
+                module,
+                null(),
+            );
+            state.menu_button = CreateWindowExW(
+                0,
+                wide("BUTTON").as_ptr(),
+                wide("Menu").as_ptr(),
+                WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW as u32,
+                0,
+                0,
+                0,
+                0,
+                hwnd,
+                MENU_BUTTON as _,
+                module,
+                null(),
+            );
             state.retry = CreateWindowExW(
                 0,
                 wide("BUTTON").as_ptr(),
                 wide("Retry").as_ptr(),
-                WS_CHILD | BS_PUSHBUTTON as u32,
+                WS_CHILD | WS_TABSTOP | BS_OWNERDRAW as u32,
                 0,
                 0,
                 0,
@@ -638,37 +1187,26 @@ mod win {
                 module,
                 null(),
             );
-            for control in [state.edit, state.list, state.status, state.retry] {
-                SendMessageW(control, WM_SETFONT, font as usize, 1);
-            }
-            let menu = CreateMenu();
-            let app_menu = CreatePopupMenu();
             AppendMenuW(
-                app_menu,
+                popup,
                 MF_STRING,
                 MENU_CHECK,
                 wide("Check for updates").as_ptr(),
             );
             AppendMenuW(
-                app_menu,
+                popup,
                 MF_STRING,
                 MENU_RESTART,
                 wide("Restart to update").as_ptr(),
             );
-            AppendMenuW(app_menu, MF_SEPARATOR, 0, null());
-            AppendMenuW(app_menu, MF_STRING, MENU_QUIT, wide("Quit").as_ptr());
-            AppendMenuW(
-                menu,
-                MF_POPUP,
-                app_menu as usize,
-                wide("Find Anything").as_ptr(),
-            );
-            SetMenu(hwnd, menu);
-            if theme == Some("dark") {
+            AppendMenuW(popup, MF_SEPARATOR, 0, null());
+            AppendMenuW(popup, MF_STRING, MENU_QUIT, wide("Quit").as_ptr());
+            apply_fonts(state, dpi);
+            if !high_contrast {
                 SetWindowTheme(hwnd, wide("DarkMode_Explorer").as_ptr(), null());
-            } else if theme == Some("light") {
-                SetWindowTheme(hwnd, wide("Explorer").as_ptr(), null());
+                SetWindowTheme(state.edit, wide("DarkMode_CFD").as_ptr(), null());
             }
+            let _ = theme; // Graphite is deliberately dark regardless of the system/theme argument.
             state.hotkey = fixture.is_none()
                 && RegisterHotKey(
                     hwnd,
@@ -704,7 +1242,6 @@ mod win {
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
-            DeleteObject(font);
             Ok(())
         }
     }

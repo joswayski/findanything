@@ -23,6 +23,7 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: python apps/native/design/generate.py --check
       - run: python -m unittest discover -s apps/native -p "test_*.py"
       - if: runner.os == 'Windows'
         run: cargo build --locked -p findanything-windows
@@ -37,7 +38,7 @@ jobs:
           bash apps/native/macos/build.sh
           mkdir -p native-smoke
           for appearance in light dark; do
-            for state in results empty error; do
+            for state in results selected query minimum empty error; do
               apps/native/macos/.build/release/FindAnythingNative --fixture "$state" --appearance "$appearance" --screenshot "native-smoke/$appearance-$state.png"
             done
           done

@@ -14,6 +14,7 @@ public static class NativeSmoke {
     [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessageW")] public static extern IntPtr ReadItem(IntPtr h, uint m, IntPtr w, StringBuilder text);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out Rect r);
+    [DllImport("user32.dll")] public static extern IntPtr GetWindowLongPtr(IntPtr h, int index);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
     public struct Rect { public int Left, Top, Right, Bottom; }
 }
@@ -52,6 +53,9 @@ foreach ($state in @('results', 'empty', 'error')) {
             [NativeSmoke]::GetClassName($pair[0], $name, 100) | Out-Null
             Check ($name.ToString() -ieq $pair[1]) "Expected OS-native $($pair[1]), got $name"
         }
+        $listStyle = [NativeSmoke]::GetWindowLongPtr($list, -16).ToInt64()
+        Check (($listStyle -band 0x40) -ne 0) 'ListBox must remain LBS_HASSTRINGS for accessibility'
+        Check (($listStyle -band 0x10) -ne 0 -and ($listStyle -band 0x20) -eq 0) 'ListBox must use fixed owner-drawn rows'
         Start-Sleep -Milliseconds 400
         $count = [NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32()
         if ($state -eq 'results') {
@@ -73,7 +77,7 @@ foreach ($state in @('results', 'empty', 'error')) {
         } else {
             Check ($count -eq 0) 'Empty/error fixture must have no rows'
             $text = New-Object Text.StringBuilder 512
-            [NativeSmoke]::GetWindowText([NativeSmoke]::GetDlgItem($h,103), $text,512) | Out-Null
+            [NativeSmoke]::GetWindowText([NativeSmoke]::GetDlgItem($h,106), $text,512) | Out-Null
             $expected = if ($state -eq 'empty') {'No local matches'} else {'Search hit a snag'}
             Check ($text.ToString().Contains($expected)) "Missing $state message: $text"
             Capture $h "windows-$state"
@@ -83,4 +87,4 @@ foreach ($state in @('results', 'empty', 'error')) {
         $process.Dispose()
     }
 }
-Write-Output 'PASS: Win32 Edit/ListBox controls, keyboard selection, filtered search, Unicode input, empty/error states and screenshots'
+Write-Output 'PASS: Graphite owner-drawn Win32 Edit/ListBox, accessibility strings, keyboard selection, filtered search, Unicode input, centered empty/error states and screenshots'
