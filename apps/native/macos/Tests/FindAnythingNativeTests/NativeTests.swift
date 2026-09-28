@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import FindAnythingNative
 
 final class NativeTests: XCTestCase {
@@ -19,5 +20,36 @@ final class NativeTests: XCTestCase {
     func testSelectionBoundaries() {
         let state = SearchState(), generation = state.begin(); _ = state.accept([a, a], generation: generation)
         state.move(-4); XCTAssertEqual(state.selected, 0); state.move(8); XCTAssertEqual(state.selected, 1); state.move(1); XCTAssertEqual(state.selected, 1)
+    }
+
+    func testSearchCellReservesIconsAndCentersTextAtBothWidths() {
+        let cell = GraphiteSearchCell(textCell: "")
+        for width in [CGFloat(592), CGFloat(712)] {
+            let bounds = NSRect(x: 7, y: 3, width: width, height: 40)
+            let text = cell.searchTextRect(forBounds: bounds)
+            XCTAssertEqual(text.midY, 23)
+            XCTAssertEqual(text.height, 18)
+            XCTAssertGreaterThan(text.minX, cell.searchButtonRect(forBounds: bounds).maxX)
+            XCTAssertLessThan(text.maxX, cell.cancelButtonRect(forBounds: bounds).minX)
+            XCTAssertEqual(cell.drawingRect(forBounds: bounds), text)
+        }
+    }
+
+    func testLauncherRetainsNativeFieldEditorAndUnicodeInput() throws {
+        _ = NSApplication.shared
+        let launcher = LauncherController(worker: nil, fixture: "results")
+        defer { launcher.hide() }
+        let content = try XCTUnwrap(launcher.window?.contentView)
+        let stack = try XCTUnwrap(content.subviews.compactMap { $0 as? NSStackView }.first)
+        let field = try XCTUnwrap(stack.arrangedSubviews.compactMap { $0 as? NSSearchField }.first)
+        XCTAssertTrue(field.isEditable)
+        XCTAssertTrue(field.isSelectable)
+        launcher.showAndFocus()
+        let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
+        let origin = field.convert(NSPoint.zero, from: editor)
+        XCTAssertGreaterThanOrEqual(origin.x, 30, "Focused editor must reserve the search icon")
+        XCTAssertGreaterThanOrEqual(origin.y, 8, "Focused editor must be vertically centered")
+        editor.insertText("資料🚀", replacementRange: NSRange(location: 0, length: 0))
+        XCTAssertEqual(field.stringValue, "資料🚀")
     }
 }

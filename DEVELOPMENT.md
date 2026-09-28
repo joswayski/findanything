@@ -33,6 +33,11 @@ macOS uses the existing application metadata and Spotlight paths. Windows indexe
 
 All platforms use native text editing, selection, lists and menus: AppKit, Win32 and GTK4. Captures informed the shared Rust/AppKit split; Find Anything goes further by using native Windows/Linux widgets instead of its experimental wgpu direction. Global shortcuts are available on macOS/Windows/X11; Wayland requires a compositor-configured shortcut launching the executable. Re-running the executable forwards focus to the existing instance. Escape/Close hide only with a registered shortcut; otherwise Escape minimizes and Close quits (macOS retains its menu bar). There is no auto-start-at-login registration yet.
 
+The desktop shells share the [Graphite design contract](apps/native/design/README.md).
+Change `apps/native/design/tokens.json`, run `python apps/native/design/generate.py`,
+and inspect matching native fixture states on all platforms. Generated token
+drift is checked in CI; native frames, menus, and font rasterization remain OS-owned.
+
 ## Website
 
 ```sh
@@ -53,7 +58,7 @@ python3 -m unittest discover -s apps/native -p 'test_*.py'
 
 `Native CI` builds/tests on macOS ARM64, macOS Intel, Windows x64 and Linux x64. It is not a substitute for physical input/IME, screen-reader, mixed-DPI or Wayland acceptance. The Linux orb cannot compile AppKit or execute Windows binaries.
 
-Successful CI also uploads `unsigned-test-packages-<runner>` artifacts for seven days. These are native test installers, not signed public releases: use disposable profiles, and expect operating-system trust warnings. CI packages locally without installing or publishing a release. Windows uses standard system-colored Win32 controls; custom dark-mode styling is not part of this migration.
+Successful CI also uploads `unsigned-test-packages-<runner>` artifacts for seven days. These are native test installers, not signed public releases: use disposable profiles, and expect operating-system trust warnings. CI packages locally without installing or publishing a release. All desktop clients use dark Graphite surfaces; Windows keeps native Edit/ListBox semantics with owner-drawn result presentation and a high-contrast fallback.
 
 Native fixtures never initialize databases, updater hooks, model downloads, single-instance election or global shortcuts:
 
