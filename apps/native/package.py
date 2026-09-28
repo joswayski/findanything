@@ -69,6 +69,8 @@ def main():
                 shutil.copy2(library, stage / library.name)
         if system == "Windows" and args.signed:
             sign = ["--signParams", f'/sha1 {os.environ["WINDOWS_CERT_THUMBPRINT"]} /fd SHA256 /tr https://timestamp.digicert.com /td SHA256']
+    notices = stage / "Contents/Resources" if system == "Darwin" else stage
+    shutil.copy2(ROOT / "apps/native/design/lucide/LICENSE", notices / "Lucide-LICENSE.txt")
     # Distinct IDs also keep installer/archive asset names unique when all four
     # feeds are uploaded into the same GitHub release.
     subprocess.run(["vpk", "pack", "--packId", f"FindAnything-{feed.removeprefix('preview-')}", "--packTitle", "Find Anything",

@@ -44,6 +44,10 @@ final class NativeTests: XCTestCase {
         let field = try XCTUnwrap(stack.arrangedSubviews.compactMap { $0 as? NSSearchField }.first)
         XCTAssertTrue(field.isEditable)
         XCTAssertTrue(field.isSelectable)
+        let searchCell = try XCTUnwrap(field.cell as? NSSearchFieldCell)
+        XCTAssertEqual(searchCell.searchButtonCell?.image?.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(searchCell.cancelButtonCell?.image?.size, NSSize(width: 16, height: 16))
+        XCTAssertNotNil(searchCell.cancelButtonCell?.action, "Replacing the clear icon must retain the native clear action")
         launcher.showAndFocus()
         let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
         let origin = field.convert(NSPoint.zero, from: editor)
@@ -51,5 +55,7 @@ final class NativeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(origin.y, 8, "Focused editor must be vertically centered")
         editor.insertText("資料🚀", replacementRange: NSRange(location: 0, length: 0))
         XCTAssertEqual(field.stringValue, "資料🚀")
+        searchCell.cancelButtonCell?.performClick(field)
+        XCTAssertEqual(field.stringValue, "", "Lucide clear button must retain its native behavior")
     }
 }

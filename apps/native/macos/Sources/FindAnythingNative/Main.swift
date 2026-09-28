@@ -52,7 +52,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         editItem.submenu = editMenu; NSApp.mainMenu = main
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Find Anything")
+        item.button?.image = LucideImage.make(.search, pointSize: 16, accessibilityDescription: "Find Anything")
         let menu = NSMenu(); let showItem = menu.addItem(withTitle: "Show Find Anything", action: #selector(show), keyEquivalent: ""); showItem.target = self
         updateItem.target = self; updateItem.action = #selector(checkUpdates); menu.addItem(updateItem)
         restartItem.target = self; restartItem.action = #selector(applyUpdate); restartItem.isHidden = true; menu.addItem(restartItem)

@@ -14,10 +14,23 @@ public static class NativeSmoke {
     [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessageW")] public static extern IntPtr ReadItem(IntPtr h, uint m, IntPtr w, StringBuilder text);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out Rect r);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] public static extern IntPtr GetWindowLongPtr(IntPtr h, int index);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr process);
+    [DllImport("user32.dll")] static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
+    struct GuiThreadInfo {
+        public int Size, Flags;
+        public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret;
+        public Rect CaretRect;
+    }
+    public static IntPtr FocusForWindow(IntPtr h) {
+        var info = new GuiThreadInfo();
+        info.Size = Marshal.SizeOf(info);
+        return GetGUIThreadInfo(GetWindowThreadProcessId(h, IntPtr.Zero), ref info) ? info.Focus : IntPtr.Zero;
+    }
     public struct Rect { public int Left, Top, Right, Bottom; }
 }
 '@
@@ -50,6 +63,8 @@ foreach ($state in @('results', 'empty', 'error')) {
         Check ($h -ne [IntPtr]::Zero) 'No native window'
         $edit = [NativeSmoke]::GetDlgItem($h, 101)
         $list = [NativeSmoke]::GetDlgItem($h, 102)
+        $clear = [NativeSmoke]::GetDlgItem($h, 109)
+        Check ($clear -ne [IntPtr]::Zero) 'Missing native clear-search button'
         foreach ($pair in @(@($edit,'Edit'), @($list,'ListBox'))) {
             $name = New-Object Text.StringBuilder 100
             [NativeSmoke]::GetClassName($pair[0], $name, 100) | Out-Null
@@ -71,6 +86,7 @@ foreach ($state in @('results', 'empty', 'error')) {
             Capture $h 'windows-selected'
             [NativeSmoke]::SetText($edit, 0xC, 0, 'display') | Out-Null
             Start-Sleep -Milliseconds 250
+            Check ([NativeSmoke]::IsWindowVisible($clear)) 'Clear-search button must be visible for a nonempty query'
             Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 1) 'Filter must leave one result'
             $label = New-Object Text.StringBuilder 512
             [NativeSmoke]::ReadItem($list, 0x189, 0, $label) | Out-Null
@@ -79,6 +95,15 @@ foreach ($state in @('results', 'empty', 'error')) {
             $section = New-Object Text.StringBuilder 100
             [NativeSmoke]::GetWindowText([NativeSmoke]::GetDlgItem($h,105), $section,100) | Out-Null
             Check ($section.ToString() -eq 'Best matches') 'Query must update the section label'
+            [NativeSmoke]::SendMessage($clear, 0xF5, 0, 0) | Out-Null
+            Start-Sleep -Milliseconds 150
+            $cleared = New-Object Text.StringBuilder 100
+            [NativeSmoke]::ReadItem($edit, 0xD, 100, $cleared) | Out-Null
+            Check ($cleared.Length -eq 0) 'Clear-search button must empty the native Edit'
+            Check (![NativeSmoke]::IsWindowVisible($clear)) 'Clear-search button must hide after clearing'
+            Check ([NativeSmoke]::FocusForWindow($h) -eq $edit) 'Clearing must return focus to the native Edit'
+            Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 3) 'Clearing must restore all results'
+            Capture $h 'windows-cleared'
             [NativeSmoke]::SetText($edit, 0xC, 0, '資料🚀') | Out-Null
             Start-Sleep -Milliseconds 150
             $unicode = New-Object Text.StringBuilder 100

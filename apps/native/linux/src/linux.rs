@@ -17,6 +17,11 @@ mod graphite {
     include!("../../design/graphite.rs");
 }
 
+#[allow(dead_code)]
+mod lucide {
+    include!("../../design/lucide.rs");
+}
+
 const GRAPHITE_CSS: &str = concat!(
     include_str!("../../design/colors.css"),
     r#"
@@ -42,6 +47,10 @@ window, .graphite-root, scrolledwindow, viewport, list {
   box-shadow: 0 0 0 1px @graphite_accent;
 }
 .graphite-search:disabled { color: @graphite_faint; opacity: .65; }
+.graphite-search image {
+  color: @graphite_secondary;
+  min-width: 16px; min-height: 16px;
+}
 .graphite-menu > button {
   min-width: $search_inner_height; min-height: $search_inner_height;
   padding: 0; border: 1px solid @graphite_border_strong;
@@ -109,6 +118,27 @@ fn graphite_css() -> String {
         css = css.replace(name, &format!("{value}px"));
     }
     css
+}
+
+fn draw_icon(cr: &gtk::cairo::Context, icon: lucide::Icon, width: i32, height: i32) {
+    let scale = f64::from(width.min(height)) / lucide::VIEWBOX;
+    cr.translate(
+        (f64::from(width) - lucide::VIEWBOX * scale) / 2.0,
+        (f64::from(height) - lucide::VIEWBOX * scale) / 2.0,
+    );
+    cr.scale(scale, scale);
+    cr.set_line_width(lucide::STROKE_WIDTH);
+    cr.set_line_cap(gtk::cairo::LineCap::Round);
+    cr.set_line_join(gtk::cairo::LineJoin::Round);
+    for path in icon.paths() {
+        if let Some((&(x, y), points)) = path.split_first() {
+            cr.move_to(x, y);
+            for &(x, y) in points {
+                cr.line_to(x, y);
+            }
+        }
+    }
+    let _ = cr.stroke();
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -381,42 +411,18 @@ impl Ui {
                 icon.set_valign(gtk::Align::Center);
                 let kind = result.kind;
                 icon.set_draw_func(move |_, cr, width, height| {
-                    cr.scale(width as f64 / 24.0, height as f64 / 24.0);
                     let color = graphite::SECONDARY;
                     cr.set_source_rgb(
                         (color >> 16) as f64 / 255.0,
                         ((color >> 8) & 255) as f64 / 255.0,
                         (color & 255) as f64 / 255.0,
                     );
-                    cr.set_line_width(1.6);
-                    cr.set_line_join(gtk::cairo::LineJoin::Round);
-                    match kind {
-                        EntityKind::Application => {
-                            cr.rectangle(4.0, 4.0, 16.0, 16.0);
-                            cr.move_to(4.0, 9.0);
-                            cr.line_to(20.0, 9.0);
-                        }
-                        EntityKind::File => {
-                            cr.move_to(6.0, 3.0);
-                            cr.line_to(14.0, 3.0);
-                            cr.line_to(19.0, 8.0);
-                            cr.line_to(19.0, 21.0);
-                            cr.line_to(6.0, 21.0);
-                            cr.close_path();
-                            cr.move_to(14.0, 3.0);
-                            cr.line_to(14.0, 8.0);
-                            cr.line_to(19.0, 8.0);
-                        }
-                        EntityKind::SystemAction => {
-                            for (y, x) in [(6.0, 9.0), (12.0, 16.0), (18.0, 8.0)] {
-                                cr.move_to(3.0, y);
-                                cr.line_to(21.0, y);
-                                cr.move_to(x, y - 3.0);
-                                cr.line_to(x, y + 3.0);
-                            }
-                        }
-                    }
-                    let _ = cr.stroke();
+                    let icon = match kind {
+                        EntityKind::Application => lucide::Icon::AppWindow,
+                        EntityKind::File => lucide::Icon::File,
+                        EntityKind::SystemAction => lucide::Icon::SlidersHorizontal,
+                    };
+                    draw_icon(cr, icon, width, height);
                 });
                 content.append(&icon);
                 let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
@@ -540,9 +546,12 @@ fn build_ui(
     theme: Option<bool>,
     instance: Option<findanything_core::instance::Instance>,
 ) {
+    gtk::gio::resources_register_include!("findanything-icons.gresource")
+        .expect("embedded Lucide icon resource is valid");
     let provider = gtk::CssProvider::new();
     provider.load_from_data(&graphite_css());
     if let Some(display) = gdk::Display::default() {
+        gtk::IconTheme::for_display(&display).add_resource_path("/com/findanything/icons");
         gtk::style_context_add_provider_for_display(
             &display,
             &provider,
@@ -574,10 +583,31 @@ fn build_ui(
         .build();
     query.set_size_request(-1, graphite::SEARCH_HEIGHT);
     query.add_css_class("graphite-search");
+    // GTK exposes no icon properties on SearchEntry. Keep its existing image
+    // children (and clear gesture); only replace their content. Recheck on GTK upgrades.
+    for (child, name) in [
+        (query.first_child(), "findanything-search-symbolic"),
+        (query.last_child(), "findanything-clear-symbolic"),
+    ] {
+        let image = child
+            .and_downcast::<gtk::Image>()
+            .expect("SearchEntry icon child must be an Image");
+        image.set_icon_name(Some(name));
+        image.set_pixel_size(16);
+    }
     header.append(&query);
-    let menu_button = gtk::MenuButton::builder()
-        .icon_name("open-menu-symbolic")
-        .build();
+    let menu_icon = gtk::DrawingArea::new();
+    menu_icon.set_size_request(16, 16);
+    menu_icon.set_draw_func(|_, cr, width, height| {
+        let color = graphite::SECONDARY;
+        cr.set_source_rgb(
+            (color >> 16) as f64 / 255.0,
+            ((color >> 8) & 255) as f64 / 255.0,
+            (color & 255) as f64 / 255.0,
+        );
+        draw_icon(cr, lucide::Icon::Menu, width, height);
+    });
+    let menu_button = gtk::MenuButton::builder().child(&menu_icon).build();
     menu_button.set_size_request(graphite::SEARCH_HEIGHT, graphite::SEARCH_HEIGHT);
     menu_button.add_css_class("graphite-menu");
     let popover = gtk::Popover::new();

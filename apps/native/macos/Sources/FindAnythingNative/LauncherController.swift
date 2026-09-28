@@ -66,7 +66,6 @@ final class ResultCell: NSTableCellView {
 
     override init(frame: NSRect) {
         super.init(frame: frame)
-        icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: Graphite.icon_size, weight: .regular)
         icon.contentTintColor = Graphite.secondary
         title.font = .systemFont(ofSize: Graphite.body_size, weight: .semibold)
         title.textColor = Graphite.text_strong
@@ -92,14 +91,18 @@ final class ResultCell: NSTableCellView {
     required init?(coder: NSCoder) { nil }
 
     func fill(_ result: SearchResult) {
-        let symbol: String
+        let lucide: LucideIcon
         switch result.kind {
-        case "system_action": symbol = "gearshape"
-        case "file": symbol = "doc"
-        case "application": symbol = "app"
-        default: symbol = "magnifyingglass"
+        case "system_action": lucide = .slidersHorizontal
+        case "file": lucide = .file
+        case "application": lucide = .appWindow
+        default: lucide = .search
         }
-        icon.image = NSImage(systemSymbolName: symbol, accessibilityDescription: result.kind.replacingOccurrences(of: "_", with: " "))
+        icon.image = LucideImage.make(
+            lucide,
+            pointSize: Graphite.icon_size,
+            accessibilityDescription: result.kind.replacingOccurrences(of: "_", with: " ")
+        )
         title.stringValue = result.title
         detail.stringValue = [result.subtitle, result.reason].filter { !$0.isEmpty }.joined(separator: " · ")
         toolTip = [result.title, detail.stringValue].filter { !$0.isEmpty }.joined(separator: " — ")
@@ -165,6 +168,14 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         query.layer?.borderWidth = 1
         query.layer?.borderColor = Graphite.border_strong.cgColor
         query.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
+        let searchImage = LucideImage.make(.search, pointSize: 16, accessibilityDescription: "Search")
+        let clearImage = LucideImage.make(.x, pointSize: 16, accessibilityDescription: "Clear search")
+        if let cell = query.cell as? NSSearchFieldCell {
+            cell.searchButtonCell?.image = searchImage
+            cell.searchButtonCell?.alternateImage = searchImage
+            cell.cancelButtonCell?.image = clearImage
+            cell.cancelButtonCell?.alternateImage = clearImage
+        }
 
         heading.font = .systemFont(ofSize: Graphite.metadata_size, weight: .semibold)
         heading.textColor = Graphite.secondary
