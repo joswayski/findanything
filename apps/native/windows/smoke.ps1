@@ -12,6 +12,7 @@ public static class NativeSmoke {
     [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
     [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
@@ -70,7 +71,8 @@ function Read-Probe([string]$Path, [scriptblock]$Ready, [string]$Description) {
         }
         Start-Sleep -Milliseconds 50
     } while ([DateTime]::UtcNow -lt $deadline)
-    throw "Timed out waiting for probe: $Description"
+    $lastState = if (Test-Path $Path) { Get-Content -Raw $Path } else { '(missing)' }
+    throw "Timed out waiting for probe: $Description; foreground=$([NativeSmoke]::GetForegroundWindow()); state=$lastState"
 }
 
 function Assert-Results($State, [int]$Count) {
@@ -110,6 +112,8 @@ Check ($sizes.minimum[0] -lt $sizes.results[0] -and $sizes.minimum[1] -lt $sizes
 # it never mutates it. Forms SendKeys emits OS keyboard input to the foreground
 # window and clicks are real user32 pointer events.
 $probe = Join-Path $Output 'interactive.json'
+Set-Clipboard -Value '資料🚀'
+Check ((Get-Clipboard -Raw) -eq '資料🚀') 'Unicode clipboard preparation failed'
 $process = Start-Fixture @('--fixture', 'results', '--probe', $probe)
 try {
     $initial = Read-Probe $probe { param($s) $s.results.Count -eq 3 -and $s.queryFocused } 'initial focused results'
@@ -138,10 +142,11 @@ try {
     $cleared = Read-Probe $probe { param($s) $s.query -eq '' -and $s.results.Count -eq 3 -and $s.queryFocused } 'clear click restoring focus and results'
 
     [Windows.Forms.SendKeys]::SendWait('{DOWN}')
-    [void](Read-Probe $probe { param($s) $s.selected -eq 1 } 'Down selecting index 1')
+    [void](Read-Probe $probe { param($s) $s.selected -eq 1 -and $s.queryFocused } 'Down selecting index 1 while retaining editor focus')
 
-    Set-Clipboard -Value '資料🚀'
+    Check ([NativeSmoke]::GetForegroundWindow() -eq $window) 'Fixture lost foreground before paste'
     [Windows.Forms.SendKeys]::SendWait('^a')
+    [void](Read-Probe $probe { param($s) $s.queryFocused } 'Ctrl+A retaining editor focus')
     [Windows.Forms.SendKeys]::SendWait('^v')
     [void](Read-Probe $probe { param($s) $s.query -eq '資料🚀' -and $s.results.Count -eq 0 } 'Unicode clipboard input including surrogate pair')
 
