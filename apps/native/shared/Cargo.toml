@@ -1,0 +1,21 @@
+[package]
+name = "findanything-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.95"
+
+[features]
+default = ["semantic"]
+semantic = ["findanything-core/semantic"]
+
+[target.'cfg(any(target_os = "linux", windows))'.dependencies]
+findanything-core = { path = "../../../crates/findanything-core", default-features = false }
+# Same native event-loop revision as Captures; hidden windows still process logic.
+eframe = { git = "https://github.com/emilk/egui", rev = "60d7caaea38a795618e842925061ad2210028a2a", default-features = false, features = ["wgpu", "x11", "wayland", "accesskit", "default_fonts"] }
+global-hotkey = "0.7"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_Accessibility", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }

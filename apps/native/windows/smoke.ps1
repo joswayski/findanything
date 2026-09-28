@@ -1,133 +1,187 @@
 param([string]$Binary = 'target/debug/findanything.exe', [string]$Output = 'native-smoke')
+
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type @'
 using System;
-using System.Text;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class NativeSmoke {
-    [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr h, int id);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder b, int n);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder b, int n);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessageW")] public static extern IntPtr SetText(IntPtr h, uint m, IntPtr w, string text);
-    [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessageW")] public static extern IntPtr ReadItem(IntPtr h, uint m, IntPtr w, StringBuilder text);
-    [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
-    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out Rect r);
-    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
-    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
-    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int width, int height, uint flags);
-    [DllImport("user32.dll")] public static extern IntPtr GetWindowLongPtr(IntPtr h, int index);
-    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
-    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr process);
-    [DllImport("user32.dll")] static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
-    struct GuiThreadInfo {
-        public int Size, Flags;
-        public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret;
-        public Rect CaretRect;
+    [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect rect);
+    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr window, ref Point point);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
+    private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr window, StringBuilder text, int count);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    public static IntPtr FindLauncher(int processId) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows((window, _) => {
+            GetWindowThreadProcessId(window, out uint owner);
+            var title = new StringBuilder(256);
+            GetWindowText(window, title, title.Capacity);
+            if (owner == processId && IsWindowVisible(window) && title.ToString() == "Find Anything"
+                && GetClientRect(window, out Rect rect) && rect.Right > 0 && rect.Bottom > 0) {
+                found = window;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
     }
-    public static IntPtr FocusForWindow(IntPtr h) {
-        var info = new GuiThreadInfo();
-        info.Size = Marshal.SizeOf(info);
-        return GetGUIThreadInfo(GetWindowThreadProcessId(h, IntPtr.Zero), ref info) ? info.Focus : IntPtr.Zero;
+    [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
+    public static void ClickClient(IntPtr window, int logicalX, int logicalY) {
+        double scale = GetDpiForWindow(window) / 96.0;
+        var point = new Point { X = (int)Math.Round(logicalX * scale), Y = (int)Math.Round(logicalY * scale) };
+        if (!ClientToScreen(window, ref point) || !SetCursorPos(point.X, point.Y))
+            throw new InvalidOperationException("Could not position native pointer");
+        mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+        mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
     }
-    public struct Rect { public int Left, Top, Right, Bottom; }
 }
 '@
+
+function Check($Condition, [string]$Message) { if (!$Condition) { throw $Message } }
+
 $Binary = (Resolve-Path $Binary).Path
-New-Item -ItemType Directory -Path $Output -Force | Out-Null
-function Check($Condition, $Message) { if (!$Condition) { throw $Message } }
-function Capture($Handle, $Name) {
-    $r = New-Object NativeSmoke+Rect
-    [NativeSmoke]::GetWindowRect($Handle, [ref]$r) | Out-Null
-    $bitmap = New-Object System.Drawing.Bitmap(($r.Right-$r.Left), ($r.Bottom-$r.Top))
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $dc = $graphics.GetHdc()
-    try { Check ([NativeSmoke]::PrintWindow($Handle, $dc, 0)) 'PrintWindow failed' }
-    finally { $graphics.ReleaseHdc($dc); $graphics.Dispose() }
-    try { $bitmap.Save((Join-Path (Resolve-Path $Output) "$Name.png"), [System.Drawing.Imaging.ImageFormat]::Png) }
-    finally { $bitmap.Dispose() }
+Check (!(Test-Path $Output)) "Output path already exists (use a unique path): $Output"
+$Output = (New-Item -ItemType Directory -Path $Output).FullName
+
+function Start-Fixture([string[]]$Arguments) {
+    $info = [Diagnostics.ProcessStartInfo]::new()
+    $info.FileName = $Binary
+    $info.UseShellExecute = $false
+    foreach ($argument in $Arguments) { [void]$info.ArgumentList.Add($argument) }
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $info
+    Check ($process.Start()) 'Could not start native fixture'
+    return $process
 }
-foreach ($state in @('results', 'empty', 'error')) {
-    $process = Start-Process $Binary -ArgumentList @('--fixture', $state) -PassThru
+
+function Stop-Fixture([Diagnostics.Process]$Process) {
+    if (!$Process.HasExited) {
+        $Process.Kill($true)
+        Check ($Process.WaitForExit(5000)) 'Fixture process would not stop'
+    }
+    $Process.Dispose()
+}
+
+function Wait-Exit([Diagnostics.Process]$Process, [string]$Description) {
+    if (!$Process.WaitForExit(15000)) {
+        Stop-Fixture $Process
+        throw "Timed out waiting for $Description"
+    }
+    Check ($Process.ExitCode -eq 0) "$Description exited with code $($Process.ExitCode)"
+}
+
+function Read-Probe([string]$Path, [scriptblock]$Ready, [string]$Description) {
+    $deadline = [DateTime]::UtcNow.AddSeconds(10)
+    do {
+        if (Test-Path $Path) {
+            try {
+                $state = Get-Content -Raw $Path | ConvertFrom-Json
+                if (& $Ready $state) { return $state }
+            } catch { } # The renderer may be replacing the probe while it is read.
+        }
+        Start-Sleep -Milliseconds 50
+    } while ([DateTime]::UtcNow -lt $deadline)
+    $lastState = if (Test-Path $Path) { Get-Content -Raw $Path } else { '(missing)' }
+    throw "Timed out waiting for probe: $Description; foreground=$([NativeSmoke]::GetForegroundWindow()); state=$lastState"
+}
+
+function Assert-Results($State, [int]$Count) {
+    Check ($State.results.Count -eq $Count) "Expected $Count results, got $($State.results.Count)"
+}
+
+# These are renderer-owned captures: each isolated fixture writes a GPU image and
+# its state sidecar, then exits. No live profile, discovery, or network is used.
+$expectedTitles = @('Browser', 'Displays', 'Project notes.md')
+$sizes = @{}
+foreach ($stateName in @('results', 'selected', 'query', 'minimum', 'empty', 'error')) {
+    $png = Join-Path $Output "windows-$stateName.png"
+    $process = Start-Fixture @('--fixture', $stateName, '--screenshot', $png)
+    Wait-Exit $process "$stateName screenshot"
+    $process.Dispose()
+    $json = [IO.Path]::ChangeExtension($png, '.json')
+    Check ((Test-Path $png) -and (Test-Path $json)) "$stateName did not write both snapshot files"
+    $snapshot = Get-Content -Raw $json | ConvertFrom-Json
+    $image = [Drawing.Image]::FromFile($png)
     try {
-        for ($i=0; $i -lt 100; $i++) {
-            $process.Refresh()
-            Check (!$process.HasExited) "Native process exited before showing $state"
-            if ($process.MainWindowHandle -ne [IntPtr]::Zero -and
-                [NativeSmoke]::GetDlgItem($process.MainWindowHandle, 101) -ne [IntPtr]::Zero -and
-                [NativeSmoke]::GetDlgItem($process.MainWindowHandle, 102) -ne [IntPtr]::Zero) { break }
-            Start-Sleep -Milliseconds 100
-        }
-        $h = $process.MainWindowHandle
-        Check ($h -ne [IntPtr]::Zero) 'No native window'
-        $edit = [NativeSmoke]::GetDlgItem($h, 101)
-        $list = [NativeSmoke]::GetDlgItem($h, 102)
-        $clear = [NativeSmoke]::GetDlgItem($h, 109)
-        Check ($clear -ne [IntPtr]::Zero) 'Missing native clear-search button'
-        foreach ($pair in @(@($edit,'Edit'), @($list,'ListBox'))) {
-            $name = New-Object Text.StringBuilder 100
-            [NativeSmoke]::GetClassName($pair[0], $name, 100) | Out-Null
-            Check ($name.ToString() -ieq $pair[1]) "Expected OS-native $($pair[1]), got $name"
-        }
-        $listStyle = [NativeSmoke]::GetWindowLongPtr($list, -16).ToInt64()
-        Check (($listStyle -band 0x40) -ne 0) 'ListBox must remain LBS_HASSTRINGS for accessibility'
-        Check (($listStyle -band 0x10) -ne 0 -and ($listStyle -band 0x20) -eq 0) 'ListBox must use fixed owner-drawn rows'
-        Start-Sleep -Milliseconds 400
-        $dpi = [NativeSmoke]::GetDpiForWindow($h)
-        Check ([NativeSmoke]::SendMessage($list, 0x1A1, 0, 0).ToInt32() -eq [int](56*$dpi/96)) 'Graphite rows must use 56 logical pixels'
-        $count = [NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32()
-        if ($state -eq 'results') {
-            Check ($count -eq 3) "Expected 3 native result rows, got $count"
-            Capture $h 'windows-results'
-            [NativeSmoke]::PostMessage($edit, 0x100, 0x28, 0) | Out-Null
-            Start-Sleep -Milliseconds 150
-            Check ([NativeSmoke]::SendMessage($list, 0x188, 0, 0).ToInt32() -eq 1) 'Down must select second result'
-            Capture $h 'windows-selected'
-            [NativeSmoke]::SetText($edit, 0xC, 0, 'display') | Out-Null
-            Start-Sleep -Milliseconds 250
-            Check ([NativeSmoke]::IsWindowVisible($clear)) 'Clear-search button must be visible for a nonempty query'
-            Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 1) 'Filter must leave one result'
-            $label = New-Object Text.StringBuilder 512
-            [NativeSmoke]::ReadItem($list, 0x189, 0, $label) | Out-Null
-            Check ($label.ToString() -eq 'Displays — System Settings — Suggested') "Wrong filtered row: $label"
-            Capture $h 'windows-query'
-            $section = New-Object Text.StringBuilder 100
-            [NativeSmoke]::GetWindowText([NativeSmoke]::GetDlgItem($h,105), $section,100) | Out-Null
-            Check ($section.ToString() -eq 'Best matches') 'Query must update the section label'
-            [NativeSmoke]::SendMessage($clear, 0xF5, 0, 0) | Out-Null
-            Start-Sleep -Milliseconds 150
-            $cleared = New-Object Text.StringBuilder 100
-            [NativeSmoke]::ReadItem($edit, 0xD, 100, $cleared) | Out-Null
-            Check ($cleared.Length -eq 0) 'Clear-search button must empty the native Edit'
-            Check (![NativeSmoke]::IsWindowVisible($clear)) 'Clear-search button must hide after clearing'
-            Check ([NativeSmoke]::FocusForWindow($h) -eq $edit) 'Clearing must return focus to the native Edit'
-            Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 3) 'Clearing must restore all results'
-            Capture $h 'windows-cleared'
-            [NativeSmoke]::SetText($edit, 0xC, 0, '資料🚀') | Out-Null
-            Start-Sleep -Milliseconds 150
-            $unicode = New-Object Text.StringBuilder 100
-            # GetWindowText cannot read another process's Edit control. WM_GETTEXT can.
-            [NativeSmoke]::ReadItem($edit, 0xD, 100, $unicode) | Out-Null
-            Check ($unicode.ToString() -eq '資料🚀') 'Native Edit must preserve Unicode including the surrogate pair'
-            Check ([NativeSmoke]::SendMessage($list, 0x18B, 0, 0).ToInt32() -eq 0) 'Unicode unmatched query must clear results'
-            Capture $h 'windows-unicode'
-            [NativeSmoke]::SetText($edit, 0xC, 0, '') | Out-Null
-            Start-Sleep -Milliseconds 150
-        } else {
-            Check ($count -eq 0) 'Empty/error fixture must have no rows'
-            $text = New-Object Text.StringBuilder 512
-            [NativeSmoke]::GetWindowText([NativeSmoke]::GetDlgItem($h,106), $text,512) | Out-Null
-            $expected = if ($state -eq 'empty') {'No local matches'} else {'Search hit a snag'}
-            Check ($text.ToString().Contains($expected)) "Missing $state message: $text"
-            Capture $h "windows-$state"
-        }
-        [NativeSmoke]::SetWindowPos($h, [IntPtr]::Zero, 0, 0, [int](640*$dpi/96), [int](420*$dpi/96), 6) | Out-Null
-        Start-Sleep -Milliseconds 200
-        Capture $h "windows-$state-minimum"
-    } finally {
-        if (!$process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }
-        $process.Dispose()
+        Check ($image.Width -gt 0 -and $image.Height -gt 0) "$stateName screenshot is empty"
+        $sizes[$stateName] = @($image.Width, $image.Height)
+    } finally { $image.Dispose() }
+
+    switch ($stateName) {
+        'results'  { Check (($snapshot.results -join '|') -eq ($expectedTitles -join '|')) 'Results snapshot changed'; Check ($snapshot.selected -eq 0) 'Results selection must be zero' }
+        'selected' { Check (($snapshot.results -join '|') -eq ($expectedTitles -join '|')) 'Selected snapshot results changed'; Check ($snapshot.selected -eq 1) 'Selected fixture must select index 1' }
+        'query'    { Check ($snapshot.query -eq 'display') 'Query fixture text changed'; Check (($snapshot.results -join '|') -eq 'Displays') 'Query fixture must contain only Displays' }
+        'minimum'  { Check (($snapshot.results -join '|') -eq ($expectedTitles -join '|')) 'Minimum snapshot results changed' }
+        'empty'    { Assert-Results $snapshot 0; Check ($null -eq $snapshot.error) 'Empty fixture unexpectedly has an error' }
+        'error'    { Assert-Results $snapshot 0; Check (![string]::IsNullOrWhiteSpace([string]$snapshot.error)) 'Error fixture has no error' }
     }
 }
-Write-Output 'PASS: Graphite owner-drawn Win32 Edit/ListBox, accessibility strings, keyboard selection, filtered search, Unicode input, centered empty/error states and screenshots'
+Check ($sizes.minimum[0] -lt $sizes.results[0] -and $sizes.minimum[1] -lt $sizes.results[1]) 'Minimum screenshot must be smaller than the default screenshot'
+
+# Exercise the actual Windows/winit input route. The probe only observes state;
+# it never mutates it. Forms SendKeys emits OS keyboard input to the foreground
+# window and clicks are real user32 pointer events.
+$probe = Join-Path $Output 'interactive.json'
+Set-Clipboard -Value '資料🚀'
+Check ((Get-Clipboard -Raw) -eq '資料🚀') 'Unicode clipboard preparation failed'
+$process = Start-Fixture @('--fixture', 'results', '--probe', $probe)
+try {
+    $initial = Read-Probe $probe { param($s) $s.results.Count -eq 3 -and $s.queryFocused } 'initial focused results'
+    for ($i = 0; $i -lt 100; $i++) {
+        $process.Refresh()
+        $window = [NativeSmoke]::FindLauncher($process.Id)
+        if ($window -ne [IntPtr]::Zero) { break }
+        Check (!$process.HasExited) 'Interactive fixture exited before opening a window'
+        Start-Sleep -Milliseconds 50
+    }
+    Check ($window -ne [IntPtr]::Zero) 'Interactive fixture has no native window'
+    Check ([NativeSmoke]::SetForegroundWindow($window)) 'Could not foreground fixture window'
+    Start-Sleep -Milliseconds 150
+
+    $rect = [NativeSmoke+Rect]::new()
+    Check ([NativeSmoke]::GetClientRect($window, [ref]$rect)) 'Could not read client size'
+    $scale = [NativeSmoke]::GetDpiForWindow($window) / 96.0
+    Check ([Math]::Abs(($rect.Right / $scale) - 680) -le 1 -and [Math]::Abs(($rect.Bottom / $scale) - 440) -le 1) "Expected 680x440 logical client, got $($rect.Right / $scale)x$($rect.Bottom / $scale)"
+
+    [NativeSmoke]::ClickClient($window, 200, 46)
+    [Windows.Forms.SendKeys]::SendWait('display')
+    $typed = Read-Probe $probe { param($s) $s.query -eq 'display' -and $s.results.Count -eq 1 } 'typed display query'
+    Check ($typed.results[0] -eq 'Displays') 'Typing display must leave one Displays result'
+
+    [NativeSmoke]::ClickClient($window, 580, 46)
+    $cleared = Read-Probe $probe { param($s) $s.query -eq '' -and $s.results.Count -eq 3 -and $s.queryFocused } 'clear click restoring focus and results'
+
+    [Windows.Forms.SendKeys]::SendWait('{DOWN}')
+    [void](Read-Probe $probe { param($s) $s.selected -eq 1 -and $s.queryFocused } 'Down selecting index 1 while retaining editor focus')
+
+    Check ([NativeSmoke]::GetForegroundWindow() -eq $window) 'Fixture lost foreground before paste'
+    [Windows.Forms.SendKeys]::SendWait('^a')
+    [void](Read-Probe $probe { param($s) $s.queryFocused } 'Ctrl+A retaining editor focus')
+    [Windows.Forms.SendKeys]::SendWait('^v')
+    [void](Read-Probe $probe { param($s) $s.query -eq '資料🚀' -and $s.results.Count -eq 0 } 'Unicode clipboard input including surrogate pair')
+
+    # Restore results before testing the menu. Escape here must close only the
+    # menu, leaving the fixture and query focus alive.
+    [NativeSmoke]::ClickClient($window, 580, 46)
+    [void](Read-Probe $probe { param($s) $s.query -eq '' -and $s.results.Count -eq 3 } 'clear after Unicode')
+    [NativeSmoke]::ClickClient($window, 634, 46)
+    [void](Read-Probe $probe { param($s) $s.menu } 'menu open')
+    [Windows.Forms.SendKeys]::SendWait('{ESC}')
+    $closed = Read-Probe $probe { param($s) !$s.menu } 'Escape closing menu only'
+    Check (!$process.HasExited -and $closed.queryFocused) 'Escape in menu must keep the focused launcher open'
+} finally {
+    Stop-Fixture $process
+}
+
+Write-Output 'PASS: six GPU fixture snapshots; real Windows typing, clear click, arrows, Unicode, focus, and menu Escape verified through the fixture probe'

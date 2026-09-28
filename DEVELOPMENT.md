@@ -1,16 +1,19 @@
 # Development
 
-Find Anything has a shared Rust core in `crates/findanything-core`, an AppKit shell in `apps/native/macos`, a Rust/Win32 shell in `apps/native/windows`, a Rust/GTK4 shell in `apps/native/linux`, and a static project website in `apps/web`. The small C ABI in `crates/findanything-ffi` is only for AppKit. No desktop web frontend or custom-drawn UI framework remains.
+Find Anything has a shared Rust core in `crates/findanything-core`, an AppKit client in `apps/native/macos`, a shared `egui`/`wgpu` Windows/Linux frontend and model worker in `apps/native/shared`, thin package wrappers in `apps/native/windows` and `apps/native/linux`, and a static project website in `apps/web`. Platform adapters isolate shortcut, lifecycle, accessibility-theme, and launch integration. The small C ABI in `crates/findanything-ffi` is only for AppKit. There is no desktop WebView or JavaScript frontend.
 
 ## Requirements
 
-- Current stable Rust (minimum 1.92), `rustfmt`, and `clippy`.
+- Current stable Rust, `rustfmt`, and `clippy`. The shared UI requires Rust 1.95
+  or newer; other workspace crates retain their existing declared minimum.
 - macOS 13+ and Xcode command-line tools for AppKit/SwiftPM.
 - Windows 10/11 x64 with Visual Studio C++ build tools and Windows SDK.
-- Linux x64 with X11 or Wayland, GTK 4.6+, OpenSSL 3, and GIO (`gio`). The release build targets Ubuntu 22.04 or compatible newer distributions, not every Linux distribution.
+- Linux x64 with X11 or Wayland development libraries, xkbcommon, OpenSSL 3,
+  and GIO (`gio`). There is no GTK UI dependency. The release build targets
+  Ubuntu 22.04 or compatible newer distributions, not every Linux distribution.
 - Node.js 24+ for the website and optional `npm` convenience commands; the desktop itself does not need Node.
 
-Debian/Ubuntu prerequisites: `build-essential pkg-config libssl-dev libgtk-4-dev libx11-dev libglib2.0-bin`. Native smoke checks also use `xvfb xauth xdotool x11-utils openbox imagemagick`. `.agents/setup` installs these for orbs; no WebKit packages are required. AppImage packaging additionally requires `squashfs-tools` and `libfuse2`.
+Debian/Ubuntu prerequisites: `build-essential pkg-config libssl-dev libx11-dev libxkbcommon-dev libwayland-dev libglib2.0-bin`. Native smoke checks also use `xvfb xauth xdotool x11-utils openbox imagemagick`. `.agents/setup` installs these for orbs; no GTK or WebKit packages are required. AppImage packaging additionally requires `squashfs-tools` and `libfuse2`.
 
 ## Desktop app
 
@@ -31,12 +34,23 @@ Search/activation run on serial workers. Generation checks discard superseded re
 
 macOS uses the existing application metadata and Spotlight paths. Windows indexes `.lnk` shortcuts from user/common Start Menu roots (not Store-only AppsFolder applications). Linux follows XDG desktop-file precedence and visibility and asks GIO to launch files; it does not execute desktop-file command strings through a shell. Windows/Linux filename search caches standard known personal folders for 60 seconds, stops at depth 6 / 20,000 entries / 300 ms between filesystem operations, and skips hidden/build folders and symlinks. These are intentional initial limits, not a whole-disk index. App discovery refreshes at process launch.
 
-All platforms use native text editing, selection, lists and menus: AppKit, Win32 and GTK4. Captures informed the shared Rust/AppKit split; Find Anything goes further by using native Windows/Linux widgets instead of its experimental wgpu direction. Global shortcuts are available on macOS/Windows/X11; Wayland requires a compositor-configured shortcut launching the executable. Re-running the executable forwards focus to the existing instance. Escape/Close hide only with a registered shortcut; otherwise Escape minimizes and Close quits (macOS retains its menu bar). There is no auto-start-at-login registration yet.
+macOS keeps AppKit's native editor and table. Windows and Linux use the shared
+immediate-mode `egui` frontend rendered by `wgpu`, with a shared Model worker and
+target-specific platform adapter. `eframe` is pinned to the same Captures revision,
+`60d7caaea38a795618e842925061ad2210028a2a`, for its hidden-window logic wake
+behavior. A working wgpu GPU backend or supported software renderer is required.
+GIO remains a Linux launch integration, not a UI toolkit dependency. Global
+shortcuts are available on macOS/Windows/X11; Wayland requires a
+compositor-configured shortcut launching the executable. Re-running the executable
+forwards focus to the existing instance. Escape/Close hide only with a registered
+shortcut; otherwise Escape minimizes and Close quits (macOS retains its menu bar).
+There is no auto-start-at-login registration yet.
 
 The desktop shells share the [Graphite design contract](apps/native/design/README.md).
 Change `apps/native/design/tokens.json`, run `python apps/native/design/generate.py`,
 and inspect matching native fixture states on all platforms. Generated token
-drift is checked in CI; native frames, menus, and font rasterization remain OS-owned.
+drift is checked in CI. Static Inter 4.1 Regular and SemiBold fonts are bundled
+on every platform; native frames and font rasterization remain platform-owned.
 
 ## Website
 
@@ -56,25 +70,31 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 python3 -m unittest discover -s apps/native -p 'test_*.py'
 ```
 
-`Native CI` builds/tests on macOS ARM64, macOS Intel, Windows x64 and Linux x64. It is not a substitute for physical input/IME, screen-reader, mixed-DPI or Wayland acceptance. The Linux orb cannot compile AppKit or execute Windows binaries.
+`Native CI` builds/tests on macOS ARM64, macOS Intel, Windows x64 and Linux x64. The shared frontend enables AccessKit, but this work remains in progress and has not received final native verification. CI is not a substitute for physical input/IME, screen-reader, mixed-DPI or Wayland acceptance; those acceptance checks remain open. The Linux orb cannot compile AppKit or execute Windows binaries.
 
-Successful CI also uploads `unsigned-test-packages-<runner>` artifacts for seven days. These are native test installers, not signed public releases: use disposable profiles, and expect operating-system trust warnings. CI packages locally without installing or publishing a release. All desktop clients use dark Graphite surfaces; Windows keeps native Edit/ListBox semantics with owner-drawn result presentation and a high-contrast fallback.
+Successful CI also uploads `unsigned-test-packages-<runner>` artifacts for seven days. These are native test installers, not signed public releases: use disposable profiles, and expect operating-system trust warnings. CI packages locally without installing or publishing a release. All desktop clients use dark Graphite surfaces. Windows retains its high-contrast startup palette; it no longer uses native Edit/ListBox controls.
 
 Native fixtures never initialize databases, updater hooks, model downloads, single-instance election or global shortcuts:
 
 ```sh
 cargo build -p findanything-linux --no-default-features
 python3 apps/native/smoke.py --binary target/debug/findanything --output /tmp/findanything-smoke
-# Interactive GTK fixtures:
-cargo run -p findanything-linux --no-default-features -- --fixture empty --theme light
-# Win32 fixtures and native-control assertions (PowerShell):
+# Deterministic shared fixture and renderer capture (also writes /tmp/linux.json):
+cargo run -p findanything-linux --no-default-features -- --fixture query --screenshot /tmp/linux.png
+# Shared Windows fixture/input smoke (PowerShell):
 cargo build -p findanything-windows
 ./apps/native/windows/smoke.ps1
 # macOS:
 apps/native/macos/.build/release/FindAnythingNative --fixture results --appearance dark --screenshot /tmp/native-mac.png
 ```
 
-Fixture states are results (omit the state on Windows/Linux), `empty`, and `error`. Review the captured images, not just the process exit code. The Linux smoke uses private Xvfb/software rendering and actual keyboard input at normal/minimum size. It does not prove physical GPU/desktop acceptance.
+The fixture interface is `--fixture results|selected|query|minimum|empty|error`.
+`--screenshot path.png` captures the renderer and writes JSON state beside it.
+`--probe path` is fixture-only and is intended for tests that provide actual input,
+not as a substitute for input. Review captures and state, not just process exit.
+The existing Linux `smoke.py` uses private Xvfb/software rendering and real
+keyboard input; the rewritten Windows `smoke.ps1` exercises the same shared UI.
+Neither proves physical GPU/desktop acceptance.
 
 ## Native packages and automatic updates
 

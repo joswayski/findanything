@@ -31,6 +31,9 @@ class PackageTests(unittest.TestCase):
                 (native / "icons/icon.icns").write_bytes(b"fixture icon")
                 (native / "design/lucide").mkdir(parents=True)
                 (native / "design/lucide/LICENSE").write_bytes(b"fixture license")
+                (native / "design/fonts").mkdir(parents=True)
+                (native / "design/fonts/LICENSE.txt").write_bytes(b"font license")
+                (native / "design/fonts/Inter-Regular.ttf").write_bytes(b"font bytes")
                 argv = ["package.py", "--signed", "--version", "0.2.17", "--stage", str(root / "stage"), "--output", str(root / "out")]
                 with patch.object(package, "ROOT", root), patch("sys.argv", argv), \
                      patch("platform.system", return_value=system), patch("platform.machine", return_value=arch), \
@@ -53,6 +56,9 @@ class PackageTests(unittest.TestCase):
                         self.assertIn("--signParams", command)
                     notices = root / "stage/Find Anything.app/Contents/Resources" if system == "Darwin" else root / "stage"
                     self.assertEqual((notices / "Lucide-LICENSE.txt").read_bytes(), b"fixture license")
+                    self.assertEqual((notices / "Inter-LICENSE.txt").read_bytes(), b"font license")
+                    if system == "Darwin":
+                        self.assertEqual((notices / "fonts/Inter-Regular.ttf").read_bytes(), b"font bytes")
                     # Never overwrite another staging tree, even on rerun.
                     with self.assertRaises(FileExistsError):
                         package.main()

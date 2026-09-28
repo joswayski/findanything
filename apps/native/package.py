@@ -50,6 +50,7 @@ def main():
         (content / "Resources").mkdir()
         shutil.copy2(ROOT / "apps/native/macos/.build/release" / exe, content / "MacOS" / exe)
         shutil.copy2(ROOT / "apps/native/icons/icon.icns", content / "Resources/icon.icns")
+        shutil.copytree(ROOT / "apps/native/design/fonts", content / "Resources/fonts")
         with (content / "Info.plist").open("wb") as file:
             plistlib.dump({"CFBundleIdentifier": "ing.findanyth.desktop", "CFBundleName": "Find Anything",
                           "CFBundleExecutable": exe, "CFBundlePackageType": "APPL", "CFBundleIconFile": "icon",
@@ -71,6 +72,7 @@ def main():
             sign = ["--signParams", f'/sha1 {os.environ["WINDOWS_CERT_THUMBPRINT"]} /fd SHA256 /tr https://timestamp.digicert.com /td SHA256']
     notices = stage / "Contents/Resources" if system == "Darwin" else stage
     shutil.copy2(ROOT / "apps/native/design/lucide/LICENSE", notices / "Lucide-LICENSE.txt")
+    shutil.copy2(ROOT / "apps/native/design/fonts/LICENSE.txt", notices / "Inter-LICENSE.txt")
     # Distinct IDs also keep installer/archive asset names unique when all four
     # feeds are uploaded into the same GitHub release.
     subprocess.run(["vpk", "pack", "--packId", f"FindAnything-{feed.removeprefix('preview-')}", "--packTitle", "Find Anything",

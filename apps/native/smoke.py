@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Finite, private-X11 smoke: real native windows/input; no installed profile or network."""
 import argparse
+import json
 import os
 from pathlib import Path
 import signal
@@ -18,12 +19,12 @@ def main():
     binary = args.binary.resolve()
     args.output.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryDirectory(prefix="findanything-smoke-") as temporary:
-        # Preserve image MIME detection without exposing installed desktop entries
-        # to discovery. GdkPixbuf needs this database to load embedded SVG icons.
+        # Preserve GIO MIME detection without exposing installed desktop entries
+        # to the disposable discovery fixture.
         (Path(temporary) / "mime").symlink_to("/usr/share/mime", target_is_directory=True)
         env = dict(os.environ, HOME=temporary, XDG_DATA_HOME=temporary, XDG_CONFIG_HOME=temporary,
                    XDG_RUNTIME_DIR=temporary, XDG_DATA_DIRS=temporary, LIBGL_ALWAYS_SOFTWARE="1",
-                   GDK_BACKEND="x11", GSK_RENDERER="cairo")
+                   WINIT_UNIX_BACKEND="x11", WGPU_BACKEND="gl")
         env.pop("WAYLAND_DISPLAY", None)
         processes = []
         logs = []
@@ -72,7 +73,8 @@ def main():
 
             for theme in ["dark", "light"]:
                 for state in ["results", "empty", "error"]:
-                    app = start([str(binary), "--fixture", *([] if state == "results" else [state]), "--theme", theme], f"{theme}-{state}")
+                    probe = args.output / f"{theme}-{state}.json"
+                    app = start([str(binary), "--fixture", state, "--theme", theme, "--probe", str(probe.resolve())], f"{theme}-{state}")
                     window = ""
                     for _ in range(200):
                         if app.poll() is not None:
@@ -84,6 +86,7 @@ def main():
                         time.sleep(.05)
                     assert window, "native window did not appear"
                     command("xdotool", "windowactivate", "--sync", window)
+                    command("xdotool", "mousemove", "1", "1")
                     time.sleep(.8)
                     command("import", "-window", window, str(args.output / f"{theme}-{state}.png"))
                     canvas = command("convert", str(args.output / f"{theme}-{state}.png"), "-format", "%[hex:p{10,300}]", "info:")
@@ -92,31 +95,27 @@ def main():
                         command("xdotool", "key", "--clearmodifiers", "Down")
                         time.sleep(.3)
                         command("import", "-window", window, str(args.output / f"{theme}-selected.png"))
+                        assert json.loads(probe.read_text())["selected"] == 1
                         command("xdotool", "type", "--clearmodifiers", "display")
                         time.sleep(.4)
                         command("import", "-window", window, str(args.output / f"{theme}-query.png"))
-                        assert (args.output / f"{theme}-query.png").read_bytes() != (args.output / f"{theme}-results.png").read_bytes()
-                        command("xdotool", "mousemove", "--window", window, "716", "44", "click", "1")
+                        typed = json.loads(probe.read_text())
+                        assert typed["query"] == "display" and typed["results"] == ["Displays"]
+                        command("xdotool", "mousemove", "--window", window, "634", "46", "click", "1")
                         time.sleep(.3)
-                        # GTK popovers use a separate X11 surface; include the
-                        # composited popup, not just the parent window pixmap.
                         menu_capture = str(args.output / f"{theme}-menu.png")
-                        command("import", "-window", "root", menu_capture)
+                        command("import", "-window", window, menu_capture)
                         command("xdotool", "key", "--clearmodifiers", "Escape")
                         time.sleep(.2)
                         assert command("xdotool", "getwindowfocus") == window, "Escape in menu must keep the launcher open"
-                        command("xdotool", "mousemove", "--window", window, "668", "44", "click", "1")
+                        command("xdotool", "mousemove", "--window", window, "580", "46", "click", "1")
                         time.sleep(.4)
                         cleared = args.output / f"{theme}-cleared.png"
                         command("import", "-window", window, str(cleared))
-                        # The third (file) row disappears when filtering and must
-                        # return when the native clear image is clicked.
-                        def file_row(path):
-                            return command("convert", str(path), "-crop", "650x50+30+214", "+repage", "-format", "%#", "info:")
-                        expected = file_row(args.output / f"{theme}-results.png")
-                        assert file_row(args.output / f"{theme}-query.png") != expected
-                        assert file_row(cleared) == expected, "Clear must restore all results"
-                    command("xdotool", "windowsize", window, "640", "420")
+                        cleared_state = json.loads(probe.read_text())
+                        assert cleared_state["query"] == "" and cleared_state["queryFocused"]
+                        assert cleared_state["results"] == ["Browser", "Displays", "Project notes.md"], "Clear must restore all results"
+                    command("xdotool", "windowsize", window, "560", "360")
                     time.sleep(.3)
                     command("import", "-window", window, str(args.output / f"{theme}-{state}-minimum.png"))
                     assert app.poll() is None

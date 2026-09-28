@@ -22,13 +22,44 @@ final class NativeTests: XCTestCase {
         state.move(-4); XCTAssertEqual(state.selected, 0); state.move(8); XCTAssertEqual(state.selected, 1); state.move(1); XCTAssertEqual(state.selected, 1)
     }
 
+    func testLucideDrawingHonorsDestinationOriginAndScale() throws {
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 80, pixelsHigh: 80,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ))
+        bitmap.bitmapData?.initialize(repeating: 0, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap))
+        let image = LucideImage.make(.appWindow, pointSize: 16)
+        let representation = try XCTUnwrap(image.representations.first)
+        XCTAssertTrue(representation.draw(in: NSRect(x: 20, y: 16, width: 24, height: 48)))
+        var xs: [Int] = [], ys: [Int] = []
+        for y in 0..<80 {
+            for x in 0..<80 where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.1 {
+                xs.append(x); ys.append(y)
+            }
+        }
+        let left = try XCTUnwrap(xs.min()), right = try XCTUnwrap(xs.max())
+        let bottom = try XCTUnwrap(ys.min()), top = try XCTUnwrap(ys.max())
+        XCTAssertEqual(CGFloat(left + right + 1) / 2, 32, accuracy: 1)
+        XCTAssertEqual(CGFloat(bottom + top + 1) / 2, 40, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(right - left, 18, "The 16-point source must scale to the 24-point destination")
+        XCTAssertGreaterThanOrEqual(left, 20)
+        XCTAssertLessThan(right, 44)
+    }
+
     func testSearchCellReservesIconsAndCentersTextAtBothWidths() {
         let cell = GraphiteSearchCell(textCell: "")
-        for width in [CGFloat(592), CGFloat(712)] {
-            let bounds = NSRect(x: 7, y: 3, width: width, height: 40)
+        cell.font = Fonts.regular(Graphite.search_size)
+        let expectedHeight = ceil(cell.font!.ascender - cell.font!.descender + cell.font!.leading)
+        for width in [CGFloat(520), CGFloat(640)] {
+            let bounds = NSRect(x: 7, y: 3, width: width, height: Graphite.search_height)
             let text = cell.searchTextRect(forBounds: bounds)
-            XCTAssertEqual(text.midY, 23)
-            XCTAssertEqual(text.height, 18)
+            XCTAssertEqual(text.midY, bounds.midY)
+            XCTAssertEqual(text.height, expectedHeight)
+            XCTAssertGreaterThan(text.height, 18, "Search text height must follow the 18-point font's layout")
             XCTAssertGreaterThan(text.minX, cell.searchButtonRect(forBounds: bounds).maxX)
             XCTAssertLessThan(text.maxX, cell.cancelButtonRect(forBounds: bounds).minX)
             XCTAssertEqual(cell.drawingRect(forBounds: bounds), text)
@@ -44,15 +75,31 @@ final class NativeTests: XCTestCase {
         let field = try XCTUnwrap(stack.arrangedSubviews.compactMap { $0 as? NSSearchField }.first)
         XCTAssertTrue(field.isEditable)
         XCTAssertTrue(field.isSelectable)
+        XCTAssertEqual(field.font?.pointSize, Graphite.search_size)
+        XCTAssertEqual(field.font?.fontName, "Inter-Regular")
         let searchCell = try XCTUnwrap(field.cell as? NSSearchFieldCell)
-        XCTAssertEqual(searchCell.searchButtonCell?.image?.size, NSSize(width: 16, height: 16))
+        XCTAssertNil(searchCell.searchButtonCell)
         XCTAssertEqual(searchCell.cancelButtonCell?.image?.size, NSSize(width: 16, height: 16))
         XCTAssertNotNil(searchCell.cancelButtonCell?.action, "Replacing the clear icon must retain the native clear action")
         launcher.showAndFocus()
+        content.layoutSubtreeIfNeeded()
+        XCTAssertEqual(field.frame.height, Graphite.search_height)
+        let icon = try XCTUnwrap(field.subviews.compactMap { $0 as? NSImageView }.first)
+        XCTAssertEqual(icon.frame.size, NSSize(width: 16, height: 16))
+        XCTAssertEqual(icon.frame.midY, field.bounds.midY)
+        XCTAssertEqual(icon.frame.minX, field.bounds.minX + 12)
+        let iconPoint = field.convert(NSPoint(x: icon.frame.midX, y: icon.frame.midY), to: field.superview)
+        XCTAssertTrue(field.hitTest(iconPoint) === field, "The decorative icon must not intercept search-field clicks")
+        XCTAssertEqual(field.cancelButtonBounds.midY, field.bounds.midY)
+        let placeholderFont = field.placeholderAttributedString?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        XCTAssertEqual(placeholderFont?.fontName, "Inter-Regular")
         let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
         let origin = field.convert(NSPoint.zero, from: editor)
         XCTAssertGreaterThanOrEqual(origin.x, 30, "Focused editor must reserve the search icon")
-        XCTAssertGreaterThanOrEqual(origin.y, 8, "Focused editor must be vertically centered")
+        let editorFrame = field.convert(editor.frame, from: editor.superview)
+        let expectedEditorFrame = searchCell.searchTextRect(forBounds: field.bounds)
+        XCTAssertEqual(editorFrame.midY, expectedEditorFrame.midY, accuracy: 1, "Focused editor must retain centered cell geometry")
+        XCTAssertGreaterThan(editorFrame.height, 18, "Focused editor must not clip 18-point search text")
         editor.insertText("資料🚀", replacementRange: NSRange(location: 0, length: 0))
         XCTAssertEqual(field.stringValue, "資料🚀")
         searchCell.cancelButtonCell?.performClick(field)

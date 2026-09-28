@@ -30,7 +30,7 @@ jobs:
           dotnet-version: '8.0.x'
       - run: dotnet tool install --global vpk --version 1.2.158
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libgtk-4-dev libx11-dev libfuse2 squashfs-tools
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config libx11-dev libxkbcommon-dev libwayland-dev libfuse2 squashfs-tools
       - if: runner.os == 'Linux'
         run: cargo build --release --locked -p findanything-linux
       - if: runner.os == 'Windows'

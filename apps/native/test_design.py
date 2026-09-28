@@ -26,7 +26,7 @@ class GraphiteTests(unittest.TestCase):
                 (design / name).write_bytes((DESIGN / name).read_bytes())
             command = [sys.executable, str(design / "generate.py")]
             subprocess.run(command, check=True, capture_output=True)
-            for name in ("graphite.rs", "colors.css", "../macos/Sources/FindAnythingNative/Graphite.swift"):
+            for name in ("graphite.rs", "../macos/Sources/FindAnythingNative/Graphite.swift"):
                 path = design / name
                 original = path.read_text()
                 path.write_text(original + "stale\n")
