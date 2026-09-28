@@ -204,6 +204,7 @@ struct Launcher {
     probe: Option<PathBuf>,
     started: Instant,
     scroll_selected: bool,
+    probe_events: std::collections::VecDeque<String>,
 }
 
 impl Launcher {
@@ -233,6 +234,7 @@ impl Launcher {
             probe: options.probe,
             started: Instant::now(),
             scroll_selected: false,
+            probe_events: Default::default(),
         }
     }
 
@@ -556,6 +558,16 @@ impl eframe::App for Launcher {
 impl Launcher {
     fn draw(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
+        if self.probe.is_some() {
+            ctx.input(|input| {
+                for event in &input.events {
+                    self.probe_events.push_back(format!("{event:?}"));
+                    if self.probe_events.len() > 32 {
+                        self.probe_events.pop_front();
+                    }
+                }
+            });
+        }
         // Consume navigation before TextEdit sees it; text/IME/clipboard still use egui's editor.
         if !self.menu && ctx.memory(|m| m.has_focus(egui::Id::unique("query"))) {
             if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowDown)) {
@@ -632,6 +644,7 @@ impl Launcher {
         if let Some(path) = &self.probe {
             let state = serde_json::json!({"query":self.model.query,"selected":self.model.selected,
                 "results":self.model.response.results.iter().map(|r|&r.title).collect::<Vec<_>>(),
+                "recentInput":self.probe_events,
                 "queryFocused":ctx.memory(|m|m.has_focus(egui::Id::unique("query"))),"menu":self.menu});
             std::fs::write(path, serde_json::to_vec(&state).unwrap()).expect("write fixture probe");
         }
