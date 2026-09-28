@@ -56,6 +56,11 @@ final class NativeTests: XCTestCase {
         launcher.showAndFocus()
         content.layoutSubtreeIfNeeded()
         XCTAssertEqual(field.frame.height, Graphite.search_height)
+        XCTAssertEqual(field.searchButtonBounds.midY, field.bounds.midY)
+        XCTAssertEqual(field.searchButtonBounds.minX, field.bounds.minX + 12)
+        XCTAssertEqual(field.cancelButtonBounds.midY, field.bounds.midY)
+        let placeholderFont = field.placeholderAttributedString?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        XCTAssertEqual(placeholderFont?.fontName, "Inter-Regular")
         let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
         let origin = field.convert(NSPoint.zero, from: editor)
         XCTAssertGreaterThanOrEqual(origin.x, 30, "Focused editor must reserve the search icon")

@@ -32,6 +32,18 @@ final class GraphiteSearchCell: NSSearchFieldCell {
 final class QueryField: NSSearchField {
     var keyHandler: ((NSEvent) -> Bool)?
 
+    // Modern AppKit lays out its search button through field metrics, not just
+    // NSSearchFieldCell's legacy rect hooks. Keep both paths on the same geometry.
+    override var searchButtonBounds: NSRect {
+        guard let cell = cell as? GraphiteSearchCell else { return super.searchButtonBounds }
+        return cell.searchButtonRect(forBounds: bounds)
+    }
+
+    override var cancelButtonBounds: NSRect {
+        guard let cell = cell as? GraphiteSearchCell else { return super.cancelButtonBounds }
+        return cell.cancelButtonRect(forBounds: bounds)
+    }
+
     override func keyDown(with event: NSEvent) {
         if keyHandler?(event) == true { return }
         super.keyDown(with: event)
@@ -158,8 +170,11 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         query.isEditable = true
         query.isSelectable = true
         query.controlSize = .regular
-        query.placeholderString = "Find anything…"
         query.font = Fonts.regular(Graphite.search_size)
+        query.placeholderAttributedString = NSAttributedString(
+            string: "Find anything…",
+            attributes: [.font: Fonts.regular(Graphite.search_size), .foregroundColor: Graphite.muted]
+        )
         query.textColor = Graphite.text
         query.delegate = self
         query.setAccessibilityLabel("Search applications, settings, and files")
