@@ -6,6 +6,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class NativeSmoke {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr window, out Rect rect);
@@ -15,6 +16,26 @@ public static class NativeSmoke {
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
+    private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr window, StringBuilder text, int count);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+    public static IntPtr FindLauncher(int processId) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows((window, _) => {
+            GetWindowThreadProcessId(window, out uint owner);
+            var title = new StringBuilder(256);
+            GetWindowText(window, title, title.Capacity);
+            if (owner == processId && IsWindowVisible(window) && title.ToString() == "Find Anything"
+                && GetClientRect(window, out Rect rect) && rect.Right > 0 && rect.Bottom > 0) {
+                found = window;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
     [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
     public static void ClickClient(IntPtr window, int logicalX, int logicalY) {
         double scale = GetDpiForWindow(window) / 96.0;
@@ -119,11 +140,11 @@ try {
     $initial = Read-Probe $probe { param($s) $s.results.Count -eq 3 -and $s.queryFocused } 'initial focused results'
     for ($i = 0; $i -lt 100; $i++) {
         $process.Refresh()
-        if ($process.MainWindowHandle -ne [IntPtr]::Zero) { break }
+        $window = [NativeSmoke]::FindLauncher($process.Id)
+        if ($window -ne [IntPtr]::Zero) { break }
         Check (!$process.HasExited) 'Interactive fixture exited before opening a window'
         Start-Sleep -Milliseconds 50
     }
-    $window = $process.MainWindowHandle
     Check ($window -ne [IntPtr]::Zero) 'Interactive fixture has no native window'
     Check ([NativeSmoke]::SetForegroundWindow($window)) 'Could not foreground fixture window'
     Start-Sleep -Milliseconds 150
