@@ -31,12 +31,30 @@ final class GraphiteSearchCell: NSSearchFieldCell {
 
 final class QueryField: NSSearchField {
     var keyHandler: ((NSEvent) -> Bool)?
+    private let searchIcon = NSImageView()
 
-    // Modern AppKit lays out its search button through field metrics, not just
-    // NSSearchFieldCell's legacy rect hooks. Keep both paths on the same geometry.
-    override var searchButtonBounds: NSRect {
-        guard let cell = cell as? GraphiteSearchCell else { return super.searchButtonBounds }
-        return cell.searchButtonRect(forBounds: bounds)
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        // Search is immediate; the magnifier is an adornment, not a submit button.
+        // Explicit layout avoids NSSearchField's standard-height glyph placement.
+        searchIcon.image = LucideImage.make(.search, pointSize: 16)
+        searchIcon.contentTintColor = Graphite.secondary
+        searchIcon.setAccessibilityElement(false)
+        searchIcon.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(searchIcon)
+        NSLayoutConstraint.activate([
+            searchIcon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            searchIcon.centerYAnchor.constraint(equalTo: centerYAnchor),
+            searchIcon.widthAnchor.constraint(equalToConstant: 16),
+            searchIcon.heightAnchor.constraint(equalToConstant: 16)
+        ])
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        return hit === searchIcon ? self : hit
     }
 
     override var cancelButtonBounds: NSRect {
@@ -190,11 +208,9 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         query.layer?.borderWidth = 1
         query.layer?.borderColor = Graphite.border_strong.cgColor
         query.keyHandler = { [weak self] event in self?.handleKey(event) ?? false }
-        let searchImage = LucideImage.make(.search, pointSize: 16, accessibilityDescription: "Search")
         let clearImage = LucideImage.make(.x, pointSize: 16, accessibilityDescription: "Clear search")
         if let cell = query.cell as? NSSearchFieldCell {
-            cell.searchButtonCell?.image = searchImage
-            cell.searchButtonCell?.alternateImage = searchImage
+            cell.searchButtonCell = nil
             cell.cancelButtonCell?.image = clearImage
             cell.cancelButtonCell?.alternateImage = clearImage
         }
