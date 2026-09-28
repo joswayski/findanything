@@ -33,6 +33,11 @@ final class QueryField: NSSearchField {
     var keyHandler: ((NSEvent) -> Bool)?
     private let searchIcon = NSImageView()
 
+    // Our border is inside the view; do not apply the native bezel's optical insets.
+    override var alignmentRectInsets: NSEdgeInsets {
+        NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+    }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         // Search is immediate; the magnifier is an adornment, not a submit button.
