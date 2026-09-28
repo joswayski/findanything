@@ -18,6 +18,9 @@ def main():
     binary = args.binary.resolve()
     args.output.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryDirectory(prefix="findanything-smoke-") as temporary:
+        # Preserve image MIME detection without exposing installed desktop entries
+        # to discovery. GdkPixbuf needs this database to load embedded SVG icons.
+        (Path(temporary) / "mime").symlink_to("/usr/share/mime", target_is_directory=True)
         env = dict(os.environ, HOME=temporary, XDG_DATA_HOME=temporary, XDG_CONFIG_HOME=temporary,
                    XDG_RUNTIME_DIR=temporary, XDG_DATA_DIRS=temporary, LIBGL_ALWAYS_SOFTWARE="1",
                    GDK_BACKEND="x11", GSK_RENDERER="cairo")
@@ -102,6 +105,17 @@ def main():
                         command("xdotool", "key", "--clearmodifiers", "Escape")
                         time.sleep(.2)
                         assert command("xdotool", "getwindowfocus") == window, "Escape in menu must keep the launcher open"
+                        command("xdotool", "mousemove", "--window", window, "668", "44", "click", "1")
+                        time.sleep(.4)
+                        cleared = args.output / f"{theme}-cleared.png"
+                        command("import", "-window", window, str(cleared))
+                        # The third (file) row disappears when filtering and must
+                        # return when the native clear image is clicked.
+                        def file_row(path):
+                            return command("convert", str(path), "-crop", "650x50+30+214", "+repage", "-format", "%#", "info:")
+                        expected = file_row(args.output / f"{theme}-results.png")
+                        assert file_row(args.output / f"{theme}-query.png") != expected
+                        assert file_row(cleared) == expected, "Clear must restore all results"
                     command("xdotool", "windowsize", window, "640", "420")
                     time.sleep(.3)
                     command("import", "-window", window, str(args.output / f"{theme}-{state}-minimum.png"))

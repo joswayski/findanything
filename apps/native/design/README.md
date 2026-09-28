@@ -41,10 +41,41 @@ editing, accessibility, window management, and launch behavior stay native.
 The reference permits native font substitutions. This port uses SF on macOS,
 Segoe UI on Windows, and system sans on Linux at the same logical size scale.
 Windows uses logical pixels, not typographic points (13 at 96 DPI, 26 at 192 DPI).
-No fonts or icons are fetched at runtime. macOS uses SF Symbols; GTK/Win32 draw
-simple stroke category icons. Native title bars and system menus may differ;
+No fonts or icons are fetched at runtime. All clients use the shared Lucide icons
+below. Native title bars and system menus may differ;
 macOS keeps its existing menu-bar controls, while Windows/Linux use a header menu.
 Windows high-contrast colors take precedence at startup.
+
+## One icon set
+
+The six SVGs in `lucide/` are vendored unchanged from Lucide 1.48.0,
+[commit f53e5bf](https://github.com/lucide-icons/lucide/tree/f53e5bfff0f909f3f451933538744330650d3ce0/icons).
+Its full ISC and Feather-derived MIT notices are in `lucide/LICENSE` and shipped
+as `Lucide-LICENSE.txt` in every native package.
+
+| Role | Lucide icon | Logical size |
+| --- | --- | --- |
+| Application result | `app-window` | 20 |
+| File result | `file` | 20 |
+| System action result | `sliders-horizontal` | 20 |
+| Search / macOS status item | `search` | 16 |
+| Header menu (Windows/Linux) | `menu` | 16 |
+| Clear search | `x` | 16 |
+
+Keep the 24-unit view box, 2-unit stroke, round caps/joins, and neutral secondary
+color. Do not substitute SF Symbols, theme icons, emoji, or hand-drawn variants.
+The generator compiles the SVG subset to identical Rust/Swift paths; AppKit,
+Cairo, and GDI render these through native drawing APIs. GTK embeds the search
+and clear SVGs as resources for its native SearchEntry. Search and clear controls
+retain native editing/accessibility behavior. OS rasterization can differ.
+
+```sh
+python apps/native/design/generate_icons.py
+python apps/native/design/generate_icons.py --check
+```
+
+CI checks generated output. New icons must come from this pinned source (or an
+explicitly reviewed upgrade), extend the role mapping, and render on all clients.
 
 ## Review before extending UI
 

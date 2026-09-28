@@ -24,6 +24,7 @@ jobs:
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: python apps/native/design/generate.py --check
+      - run: python apps/native/design/generate_icons.py --check
       - run: python -m unittest discover -s apps/native -p "test_*.py"
       - if: runner.os == 'Windows'
         run: cargo build --locked -p findanything-windows

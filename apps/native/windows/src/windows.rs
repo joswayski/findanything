@@ -175,6 +175,10 @@ mod win {
     mod graphite {
         include!("../../design/graphite.rs");
     }
+    #[allow(dead_code)]
+    mod lucide {
+        include!("../../design/lucide.rs");
+    }
 
     const EDIT: i32 = 101;
     const LIST: i32 = 102;
@@ -184,6 +188,7 @@ mod win {
     const MESSAGE: i32 = 106;
     const SHORTCUTS: i32 = 107;
     const MENU_BUTTON: i32 = 108;
+    const CLEAR_BUTTON: i32 = 109;
     const MENU_CHECK: usize = 201;
     const MENU_RESTART: usize = 202;
     const MENU_QUIT: usize = 203;
@@ -210,6 +215,7 @@ mod win {
         message: HWND,
         shortcuts: HWND,
         menu_button: HWND,
+        clear_button: HWND,
         response: SearchResponse,
         query: String,
         generation: u64,
@@ -440,7 +446,7 @@ mod win {
             a.font = make_font(dpi, graphite::BODY_SIZE, FW_NORMAL as i32);
             a.title_font = make_font(dpi, graphite::BODY_SIZE, FW_SEMIBOLD as i32);
             a.metadata_font = make_font(dpi, graphite::METADATA_SIZE, FW_NORMAL as i32);
-            for control in [a.edit, a.message, a.retry, a.menu_button] {
+            for control in [a.edit, a.message, a.retry, a.menu_button, a.clear_button] {
                 if !control.is_null() {
                     SendMessageW(control, WM_SETFONT, a.font as usize, 1);
                 }
@@ -461,41 +467,64 @@ mod win {
             }
         }
     }
-    unsafe fn draw_icon(dc: HDC, kind: EntityKind, x: i32, y: i32, size: i32, color: COLORREF) {
+    unsafe fn draw_lucide(
+        dc: HDC,
+        icon: lucide::Icon,
+        x: i32,
+        y: i32,
+        size: i32,
+        dpi: i32,
+        color: COLORREF,
+    ) {
         unsafe {
-            let pen = CreatePen(PS_SOLID, (size / 10).max(1), color);
-            let old = SelectObject(dc, pen);
-            let old_brush = SelectObject(dc, GetStockObject(NULL_BRUSH));
-            let p = size / 5;
-            match kind {
-                EntityKind::Application => {
-                    Rectangle(dc, x + p, y + p, x + size - p, y + size - p);
-                    MoveToEx(dc, x + p, y + size * 2 / 5, null_mut());
-                    LineTo(dc, x + size - p, y + size * 2 / 5);
-                }
-                EntityKind::File => {
-                    MoveToEx(dc, x + p, y + p, null_mut());
-                    LineTo(dc, x + size * 3 / 5, y + p);
-                    LineTo(dc, x + size - p, y + size * 2 / 5);
-                    LineTo(dc, x + size - p, y + size - p);
-                    LineTo(dc, x + p, y + size - p);
-                    LineTo(dc, x + p, y + p);
-                }
-                _ => {
-                    for (row, knob) in [(1, 2), (2, 3), (3, 2)] {
-                        let line_y = y + size * row / 4;
-                        let knob_x = x + size * knob / 5;
-                        MoveToEx(dc, x + p, line_y, null_mut());
-                        LineTo(dc, x + size - p, line_y);
-                        MoveToEx(dc, knob_x, line_y - p / 2, null_mut());
-                        LineTo(dc, knob_x, line_y + p / 2);
-                    }
-                }
+            let saved = SaveDC(dc);
+            let brush = LOGBRUSH {
+                lbStyle: BS_SOLID,
+                lbColor: color,
+                lbHatch: 0,
+            };
+            let width = (lucide::STROKE_WIDTH * size as f64 / lucide::VIEWBOX)
+                .round()
+                .max(scale(1, dpi) as f64) as u32;
+            let pen = ExtCreatePen(
+                (PS_GEOMETRIC | PS_SOLID | PS_ENDCAP_ROUND | PS_JOIN_ROUND) as u32,
+                width,
+                &brush,
+                0,
+                null(),
+            );
+            SelectObject(dc, pen);
+            SelectObject(dc, GetStockObject(NULL_BRUSH));
+            for path in icon.paths() {
+                let points: Vec<POINT> = path
+                    .iter()
+                    .map(|&(px, py)| POINT {
+                        x: x + (px * size as f64 / lucide::VIEWBOX).round() as i32,
+                        y: y + (py * size as f64 / lucide::VIEWBOX).round() as i32,
+                    })
+                    .collect();
+                Polyline(dc, points.as_ptr(), points.len() as i32);
             }
-            SelectObject(dc, old_brush);
-            SelectObject(dc, old);
+            RestoreDC(dc, saved);
             DeleteObject(pen);
         }
+    }
+
+    unsafe fn draw_icon(
+        dc: HDC,
+        kind: EntityKind,
+        x: i32,
+        y: i32,
+        size: i32,
+        dpi: i32,
+        color: COLORREF,
+    ) {
+        let icon = match kind {
+            EntityKind::Application => lucide::Icon::AppWindow,
+            EntityKind::File => lucide::Icon::File,
+            _ => lucide::Icon::SlidersHorizontal,
+        };
+        unsafe { draw_lucide(dc, icon, x, y, size, dpi, color) }
     }
 
     unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
@@ -520,8 +549,16 @@ mod win {
                             a.edit,
                             inset + s(32),
                             search_y + s(12),
-                            w - inset * 2 - s(92),
+                            w - inset * 2 - s(128),
                             s(20),
+                            1,
+                        );
+                        MoveWindow(
+                            a.clear_button,
+                            w - inset - s(graphite::SEARCH_HEIGHT + graphite::GAP + 36),
+                            search_y + s(4),
+                            s(32),
+                            s(32),
                             1,
                         );
                         MoveWindow(
@@ -624,8 +661,8 @@ mod win {
                                 a.brushes[0]
                             },
                         );
+                        let dpi = GetDpiForWindow(hwnd) as i32;
                         if !a.high_contrast {
-                            let dpi = GetDpiForWindow(hwnd) as i32;
                             let s = |v| scale(v, dpi);
                             let focused = GetFocus() == a.edit;
                             let pen = CreatePen(
@@ -652,19 +689,21 @@ mod win {
                             SelectObject(dc, old_brush);
                             SelectObject(dc, old_pen);
                             DeleteObject(pen);
-                            let search_pen =
-                                CreatePen(PS_SOLID, s(2), colorref(graphite::SECONDARY));
-                            let old_pen = SelectObject(dc, search_pen);
-                            let old_brush = SelectObject(dc, GetStockObject(NULL_BRUSH));
-                            let x = s(graphite::INSET + 12);
-                            let y = s(graphite::INSET + 13);
-                            Ellipse(dc, x, y, x + s(10), y + s(10));
-                            MoveToEx(dc, x + s(8), y + s(8), null_mut());
-                            LineTo(dc, x + s(14), y + s(14));
-                            SelectObject(dc, old_brush);
-                            SelectObject(dc, old_pen);
-                            DeleteObject(search_pen);
                         }
+                        let s = |v| scale(v, dpi);
+                        draw_lucide(
+                            dc,
+                            lucide::Icon::Search,
+                            s(graphite::INSET + 10),
+                            s(graphite::INSET + 12),
+                            s(16),
+                            dpi,
+                            if a.high_contrast {
+                                GetSysColor(COLOR_WINDOWTEXT)
+                            } else {
+                                colorref(graphite::SECONDARY)
+                            },
+                        );
                     }
                     EndPaint(hwnd, &ps);
                     return 0;
@@ -703,7 +742,10 @@ mod win {
                             }),
                         );
                         SetBkMode(dc, TRANSPARENT as i32);
-                        return if lp as HWND == a.edit || lp as HWND == a.menu_button {
+                        return if lp as HWND == a.edit
+                            || lp as HWND == a.menu_button
+                            || lp as HWND == a.clear_button
+                        {
                             a.brushes[2]
                         } else {
                             a.brushes[0]
@@ -712,7 +754,9 @@ mod win {
                 }
                 WM_DRAWITEM => {
                     let d = &*(lp as *const DRAWITEMSTRUCT);
-                    if (d.CtlID == MENU_BUTTON as u32 || d.CtlID == RETRY as u32)
+                    if (d.CtlID == MENU_BUTTON as u32
+                        || d.CtlID == CLEAR_BUTTON as u32
+                        || d.CtlID == RETRY as u32)
                         && let Some(a) = app(hwnd)
                     {
                         let saved_dc = SaveDC(d.hDC);
@@ -721,6 +765,8 @@ mod win {
                             &d.rcItem,
                             if a.high_contrast {
                                 GetSysColorBrush(COLOR_BTNFACE)
+                            } else if d.CtlID == CLEAR_BUTTON as u32 {
+                                a.brushes[2]
                             } else {
                                 a.brushes[0]
                             },
@@ -761,24 +807,23 @@ mod win {
                         } else {
                             let dpi = GetDpiForWindow(hwnd) as i32;
                             let s = |v| scale(v, dpi);
-                            let pen = CreatePen(
-                                PS_SOLID,
-                                s(2),
+                            draw_lucide(
+                                d.hDC,
+                                if d.CtlID == CLEAR_BUTTON as u32 {
+                                    lucide::Icon::X
+                                } else {
+                                    lucide::Icon::Menu
+                                },
+                                (r.left + r.right - s(16)) / 2,
+                                (r.top + r.bottom - s(16)) / 2,
+                                s(16),
+                                dpi,
                                 if a.high_contrast {
                                     GetSysColor(COLOR_BTNTEXT)
                                 } else {
                                     colorref(graphite::SECONDARY)
                                 },
                             );
-                            let old = SelectObject(d.hDC, pen);
-                            let cx = (r.left + r.right) / 2;
-                            let cy = (r.top + r.bottom) / 2;
-                            for dy in [-5, 0, 5] {
-                                MoveToEx(d.hDC, cx - s(7), cy + s(dy), null_mut());
-                                LineTo(d.hDC, cx + s(7), cy + s(dy));
-                            }
-                            SelectObject(d.hDC, old);
-                            DeleteObject(pen);
                         }
                         if d.itemState & ODS_FOCUS != 0 {
                             DrawFocusRect(d.hDC, &r);
@@ -854,6 +899,7 @@ mod win {
                                 icon_x,
                                 icon_y,
                                 s(graphite::ICON_SIZE),
+                                dpi,
                                 secondary,
                             );
                             let left = icon_x + s(graphite::ICON_SIZE + 12);
@@ -901,6 +947,10 @@ mod win {
                             let mut text = vec![0u16; n + 1];
                             GetWindowTextW(a.edit, text.as_mut_ptr(), text.len() as i32);
                             a.query = from_wide(&text);
+                            ShowWindow(
+                                a.clear_button,
+                                if a.query.is_empty() { SW_HIDE } else { SW_SHOW },
+                            );
                             a.request_search();
                         } else if id == EDIT
                             && (notify == EN_SETFOCUS as u16 || notify == EN_KILLFOCUS as u16)
@@ -911,6 +961,13 @@ mod win {
                         } else if id == RETRY {
                             a.worker = Some(Worker::spawn());
                             a.request_search();
+                        } else if id == CLEAR_BUTTON {
+                            if !a.activating && IsWindowEnabled(a.edit) != 0 {
+                                let edit = a.edit;
+                                drop(a); // WM_SETTEXT synchronously dispatches EN_CHANGE.
+                                SetWindowTextW(edit, wide("").as_ptr());
+                                SetFocus(edit);
+                            }
                         } else if id == MENU_BUTTON {
                             let mut r: RECT = std::mem::zeroed();
                             GetWindowRect(a.menu_button, &mut r);
@@ -1075,6 +1132,7 @@ mod win {
                 message: null_mut(),
                 shortcuts: null_mut(),
                 menu_button: null_mut(),
+                clear_button: null_mut(),
                 response: fixture_response(Fixture::Empty),
                 query: String::new(),
                 generation: 0,
@@ -1236,6 +1294,20 @@ mod win {
                 0,
                 hwnd,
                 MENU_BUTTON as _,
+                module,
+                null(),
+            );
+            state.clear_button = CreateWindowExW(
+                0,
+                wide("BUTTON").as_ptr(),
+                wide("Clear search").as_ptr(),
+                WS_CHILD | WS_TABSTOP | BS_OWNERDRAW as u32,
+                0,
+                0,
+                0,
+                0,
+                hwnd,
+                CLEAR_BUTTON as _,
                 module,
                 null(),
             );
