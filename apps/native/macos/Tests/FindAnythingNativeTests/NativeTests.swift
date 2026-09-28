@@ -22,6 +22,34 @@ final class NativeTests: XCTestCase {
         state.move(-4); XCTAssertEqual(state.selected, 0); state.move(8); XCTAssertEqual(state.selected, 1); state.move(1); XCTAssertEqual(state.selected, 1)
     }
 
+    func testLucideDrawingHonorsDestinationOriginAndScale() throws {
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 80, pixelsHigh: 80,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ))
+        bitmap.bitmapData?.initialize(repeating: 0, count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap))
+        let image = LucideImage.make(.appWindow, pointSize: 16)
+        let representation = try XCTUnwrap(image.representations.first)
+        XCTAssertTrue(representation.draw(in: NSRect(x: 20, y: 16, width: 24, height: 48)))
+        var xs: [Int] = [], ys: [Int] = []
+        for y in 0..<80 {
+            for x in 0..<80 where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.1 {
+                xs.append(x); ys.append(y)
+            }
+        }
+        let left = try XCTUnwrap(xs.min()), right = try XCTUnwrap(xs.max())
+        let bottom = try XCTUnwrap(ys.min()), top = try XCTUnwrap(ys.max())
+        XCTAssertEqual(CGFloat(left + right + 1) / 2, 32, accuracy: 1)
+        XCTAssertEqual(CGFloat(bottom + top + 1) / 2, 40, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(right - left, 18, "The 16-point source must scale to the 24-point destination")
+        XCTAssertGreaterThanOrEqual(left, 20)
+        XCTAssertLessThan(right, 44)
+    }
+
     func testSearchCellReservesIconsAndCentersTextAtBothWidths() {
         let cell = GraphiteSearchCell(textCell: "")
         cell.font = Fonts.regular(Graphite.search_size)
