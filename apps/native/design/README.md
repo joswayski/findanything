@@ -14,10 +14,11 @@ python apps/native/design/generate.py
 python apps/native/design/generate.py --check
 ```
 
-The checked-in Rust constants, AppKit colors/dimensions, and GTK color definitions
-are generated. CI rejects stale output. Do not edit generated files or introduce
-per-platform color palettes. Platform widgets consume these tokens; their native
-editing, accessibility, window management, and launch behavior stay native.
+The checked-in Rust constants and AppKit colors/dimensions are generated. CI
+rejects stale output. Do not edit generated files or introduce per-platform color
+palettes. AppKit consumes the Swift values; the shared Windows/Linux egui frontend
+consumes the Rust values. Platform window management and launch behavior remain
+behind target adapters.
 
 ## Shared presentation contract
 
@@ -26,23 +27,22 @@ editing, accessibility, window management, and launch behavior stay native.
 - Canvas `#161618`, chrome `#1c1c1e`, controls `#2a2a2d`, subtle borders `#353538`.
   Strong text `#f5f5f7`, metadata `#a0a0a6`, focus/selection edge `#4c9aff`.
   Selection wash `#1e2838` is the reference's 14% accent over the canvas.
-- Default content 760 × 548 logical units, 24-unit insets and 8-unit gaps.
-  A 40-unit search field precedes a 20-unit section label and scrollable results.
-  Keep content usable at a 640 × 420 window. Native frame sizes differ.
-- Results are 56 units high: 13-unit semibold title above 11-unit metadata
+- Default content is 680 × 440 logical units, with a minimum of 560 × 360,
+  20-unit insets and 8-unit gaps. A 52-unit search field uses 18-unit text.
+- Results are 60 units high: 16-unit semibold title above 12-unit metadata
   (`subtitle · reason`), a neutral 20-unit stroke icon, and a 2-unit blue
   selection edge. Do not merge metadata into titles or use colored initial tiles.
 - The 28-unit footer has indexing/search mode on the left and navigation hints
   on the right. Empty/error messages belong in the center of the result area.
 - Use sentence case: “Apps & actions”, “Best matches”, “Keyword mode”.
-- Preserve native keyboard editing and selection. Blue denotes focus/selection;
+- Preserve keyboard editing and selection behavior. Blue denotes focus/selection;
   red denotes an error, not decoration. No animated transitions are required.
 
-The reference permits native font substitutions. This port uses SF on macOS,
-Segoe UI on Windows, and system sans on Linux at the same logical size scale.
-Windows uses logical pixels, not typographic points (13 at 96 DPI, 26 at 192 DPI).
-No fonts or icons are fetched at runtime. All clients use the shared Lucide icons
-below. Native title bars and system menus may differ;
+All platforms bundle and use static Inter 4.1 Regular and SemiBold from the
+[official release](https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip)
+(`extras/ttf`, unchanged). The font license is shipped with every package; see
+[`fonts/README.md`](fonts/README.md). No fonts or icons are fetched at runtime.
+All clients use the shared Lucide icons below. Native title bars and system menus may differ;
 macOS keeps its existing menu-bar controls, while Windows/Linux use a header menu.
 Windows high-contrast colors take precedence at startup.
 
@@ -64,10 +64,9 @@ as `Lucide-LICENSE.txt` in every native package.
 
 Keep the 24-unit view box, 2-unit stroke, round caps/joins, and neutral secondary
 color. Do not substitute SF Symbols, theme icons, emoji, or hand-drawn variants.
-The generator compiles the SVG subset to identical Rust/Swift paths; AppKit,
-Cairo, and GDI render these through native drawing APIs. GTK embeds the search
-and clear SVGs as resources for its native SearchEntry. Search and clear controls
-retain native editing/accessibility behavior. OS rasterization can differ.
+The generator compiles the SVG subset to identical Rust/Swift paths. AppKit draws
+the Swift paths with its drawing APIs; the shared egui frontend draws the Rust
+paths. Rasterization can differ, but the source geometry does not.
 
 ```sh
 python apps/native/design/generate_icons.py

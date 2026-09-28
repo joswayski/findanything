@@ -1,12 +1,9 @@
 #[cfg(target_os = "linux")]
-mod linux;
-
-#[cfg(target_os = "linux")]
-fn main() -> gtk::glib::ExitCode {
-    linux::main()
+fn main() {
+    findanything_ui::run();
 }
 
 #[cfg(not(target_os = "linux"))]
 fn main() {
-    panic!("The GTK launcher requires Linux");
+    panic!("The Linux launcher requires Linux");
 }

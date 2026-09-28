@@ -4,15 +4,22 @@ import AppKit
 // drawing rect, overlapping its search button in a taller Graphite control.
 final class GraphiteSearchCell: NSSearchFieldCell {
     override func searchTextRect(forBounds rect: NSRect) -> NSRect {
-        NSRect(x: rect.minX + 32, y: rect.midY - 9, width: max(0, rect.width - 64), height: 18)
+        let face = font ?? Fonts.regular(Graphite.search_size)
+        let textHeight = ceil(face.ascender - face.descender + face.leading)
+        return NSRect(
+            x: rect.minX + 38,
+            y: rect.midY - textHeight / 2,
+            width: max(0, rect.width - 76),
+            height: textHeight
+        )
     }
     override func drawingRect(forBounds rect: NSRect) -> NSRect { searchTextRect(forBounds: rect) }
     override func titleRect(forBounds rect: NSRect) -> NSRect { searchTextRect(forBounds: rect) }
     override func searchButtonRect(forBounds rect: NSRect) -> NSRect {
-        NSRect(x: rect.minX + 10, y: rect.midY - 8, width: 16, height: 16)
+        NSRect(x: rect.minX + 12, y: rect.midY - 8, width: 16, height: 16)
     }
     override func cancelButtonRect(forBounds rect: NSRect) -> NSRect {
-        NSRect(x: rect.maxX - 26, y: rect.midY - 8, width: 16, height: 16)
+        NSRect(x: rect.maxX - 28, y: rect.midY - 8, width: 16, height: 16)
     }
     override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start: Int, length: Int) {
         super.select(withFrame: searchTextRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, start: start, length: length)
@@ -67,10 +74,10 @@ final class ResultCell: NSTableCellView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         icon.contentTintColor = Graphite.secondary
-        title.font = .systemFont(ofSize: Graphite.body_size, weight: .semibold)
+        title.font = Fonts.semibold(Graphite.body_size)
         title.textColor = Graphite.text_strong
         title.lineBreakMode = .byTruncatingTail
-        detail.font = .systemFont(ofSize: Graphite.metadata_size)
+        detail.font = Fonts.regular(Graphite.metadata_size)
         detail.textColor = Graphite.muted
         detail.lineBreakMode = .byTruncatingMiddle
         [icon, title, detail].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; addSubview($0) }
@@ -152,7 +159,7 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         query.isSelectable = true
         query.controlSize = .regular
         query.placeholderString = "Find anything…"
-        query.font = .systemFont(ofSize: Graphite.body_size)
+        query.font = Fonts.regular(Graphite.search_size)
         query.textColor = Graphite.text
         query.delegate = self
         query.setAccessibilityLabel("Search applications, settings, and files")
@@ -177,7 +184,7 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
             cell.cancelButtonCell?.alternateImage = clearImage
         }
 
-        heading.font = .systemFont(ofSize: Graphite.metadata_size, weight: .semibold)
+        heading.font = Fonts.semibold(Graphite.metadata_size)
         heading.textColor = Graphite.secondary
 
         table.headerView = nil
@@ -202,18 +209,18 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         scroll.borderType = .noBorder
 
         status.textColor = Graphite.muted
-        status.font = .systemFont(ofSize: Graphite.metadata_size)
+        status.font = Fonts.regular(Graphite.metadata_size)
         let shortcuts = NSTextField(labelWithString: "↑/↓ Navigate   Enter Open   Esc Close")
         shortcuts.alignment = .right
         shortcuts.textColor = Graphite.faint
-        shortcuts.font = .systemFont(ofSize: Graphite.metadata_size)
+        shortcuts.font = Fonts.regular(Graphite.metadata_size)
         let footer = NSStackView(views: [status, shortcuts])
         footer.distribution = .fillEqually
         footer.alignment = .centerY
 
         message.alignment = .center
         message.textColor = Graphite.muted
-        message.font = .systemFont(ofSize: Graphite.body_size)
+        message.font = Fonts.regular(Graphite.body_size)
         message.maximumNumberOfLines = 3
         message.translatesAutoresizingMaskIntoConstraints = false
 
@@ -296,11 +303,11 @@ final class LauncherController: NSWindowController, NSWindowDelegate, NSSearchFi
         if error, let newline = value.firstIndex(of: "\n") {
             let rendered = NSMutableAttributedString(
                 string: String(value[..<newline]),
-                attributes: [.foregroundColor: Graphite.danger, .font: NSFont.systemFont(ofSize: Graphite.body_size, weight: .semibold)]
+                attributes: [.foregroundColor: Graphite.danger, .font: Fonts.semibold(Graphite.body_size)]
             )
             rendered.append(NSAttributedString(
                 string: String(value[newline...]),
-                attributes: [.foregroundColor: Graphite.muted, .font: NSFont.systemFont(ofSize: Graphite.body_size)]
+                attributes: [.foregroundColor: Graphite.muted, .font: Fonts.regular(Graphite.body_size)]
             ))
             message.attributedStringValue = rendered
         } else {

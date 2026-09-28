@@ -4,7 +4,6 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-build = "build.rs"
 
 [[bin]]
 name = "findanything"
@@ -12,10 +11,7 @@ path = "src/main.rs"
 
 [features]
 default = ["semantic"]
-semantic = ["findanything-core/semantic"]
+semantic = ["findanything-ui/semantic"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
-# 0.7 targets GTK 4.6, the GTK release shipped by Ubuntu 22.04.
-gtk = { package = "gtk4", version = "0.7", features = ["v4_6"] }
-global-hotkey = "0.7"
-findanything-core = { path = "../../../crates/findanything-core", default-features = false }
+findanything-ui = { path = "../shared", default-features = false }

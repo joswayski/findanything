@@ -39,7 +39,6 @@ install_system_packages() {
 		file
 		libssl-dev
 		pkg-config
-		libgtk-4-dev
 		libx11-dev
 		libxkbcommon-dev
 		libxkbcommon-x11-0

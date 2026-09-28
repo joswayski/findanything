@@ -7,5 +7,8 @@ if [[ -z "${FINDANYTHING_LIB_DIR:-}" ]]; then
   cargo build --manifest-path "$HERE/../../../Cargo.toml" --locked --release -p findanything-ffi
 fi
 export FINDANYTHING_LIB_DIR="$(cd "$LIB_DIR" && pwd)"
+BIN_DIR="$(swift build --package-path "$HERE" -c release --show-bin-path)"
+mkdir -p "$BIN_DIR/fonts"
+cp "$HERE/../design/fonts/"* "$BIN_DIR/fonts/"
 swift test --package-path "$HERE" -c release
 swift build --package-path "$HERE" -c release

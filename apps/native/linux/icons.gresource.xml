@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<gresources>
-  <gresource prefix="/com/findanything/icons">
-    <file alias="scalable/actions/findanything-search-symbolic.svg">search.svg</file>
-    <file alias="scalable/actions/findanything-clear-symbolic.svg">x.svg</file>
-  </gresource>
-</gresources>
