@@ -204,7 +204,6 @@ struct Launcher {
     probe: Option<PathBuf>,
     started: Instant,
     scroll_selected: bool,
-    probe_events: std::collections::VecDeque<String>,
 }
 
 impl Launcher {
@@ -234,7 +233,6 @@ impl Launcher {
             probe: options.probe,
             started: Instant::now(),
             scroll_selected: false,
-            probe_events: Default::default(),
         }
     }
 
@@ -558,23 +556,21 @@ impl eframe::App for Launcher {
 impl Launcher {
     fn draw(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
-        if self.probe.is_some() {
-            ctx.input(|input| {
-                for event in &input.events {
-                    self.probe_events.push_back(format!("{event:?}"));
-                    if self.probe_events.len() > 32 {
-                        self.probe_events.pop_front();
-                    }
-                }
-            });
-        }
         // Consume navigation before TextEdit sees it; text/IME/clipboard still use egui's editor.
         if !self.menu && ctx.memory(|m| m.has_focus(egui::Id::unique("query"))) {
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowDown)) {
+            let down = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowDown));
+            let up = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowUp));
+            if (down || up) && !ctx.input(|i| i.key_pressed(Key::Tab)) {
+                // egui schedules focus movement before draw. On the first pass
+                // after restoring focus the editor's arrow filter is not active
+                // yet, so cancel the movement for the arrow we just consumed.
+                ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
+            }
+            if down {
                 self.model.move_selection(1);
                 self.scroll_selected = true;
             }
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::ArrowUp)) {
+            if up {
                 self.model.move_selection(-1);
                 self.scroll_selected = true;
             }
@@ -644,7 +640,6 @@ impl Launcher {
         if let Some(path) = &self.probe {
             let state = serde_json::json!({"query":self.model.query,"selected":self.model.selected,
                 "results":self.model.response.results.iter().map(|r|&r.title).collect::<Vec<_>>(),
-                "recentInput":self.probe_events,
                 "queryFocused":ctx.memory(|m|m.has_focus(egui::Id::unique("query"))),"menu":self.menu});
             std::fs::write(path, serde_json::to_vec(&state).unwrap()).expect("write fixture probe");
         }
@@ -818,11 +813,33 @@ mod tests {
         let _ = frame(&ctx, &mut app, vec![egui::Event::Text("資料🚀".into())]);
         assert_eq!(app.model.query, "display資料🚀");
         assert!(app.model.response.results.is_empty());
+        let _ = frame(
+            &ctx,
+            &mut app,
+            vec![egui::Event::Key {
+                key: Key::A,
+                physical_key: Some(Key::A),
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers {
+                    ctrl: true,
+                    command: true,
+                    ..Default::default()
+                },
+            }],
+        );
+        assert!(ctx.memory(|m| m.has_focus(egui::Id::unique("query"))));
+        let _ = frame(&ctx, &mut app, vec![egui::Event::Paste("資料🚀".into())]);
+        assert_eq!(
+            app.model.query, "資料🚀",
+            "Paste must replace the entire selected query"
+        );
     }
 
     #[test]
     fn clear_click_restores_results_focus_and_escape_closes_only_menu() {
         let ctx = egui::Context::default();
+        ctx.options_mut(|options| options.max_passes = std::num::NonZeroUsize::new(1).unwrap());
         let mut app = Launcher::new(
             &ctx,
             Options {
@@ -854,6 +871,12 @@ mod tests {
         assert_eq!(app.model.query, "");
         assert_eq!(app.model.response.results.len(), 3);
         assert!(ctx.memory(|m| m.has_focus(egui::Id::unique("query"))));
+        let _ = frame(&ctx, &mut app, vec![key(Key::ArrowDown)]);
+        assert_eq!(app.model.selected, 1);
+        assert!(
+            ctx.memory(|m| m.has_focus(egui::Id::unique("query"))),
+            "Down immediately after clear must retain focus after end_pass"
+        );
         app.menu = true;
         let out = frame(&ctx, &mut app, vec![key(Key::Escape)]);
         assert!(!app.menu);
@@ -862,6 +885,11 @@ mod tests {
                 .commands
                 .iter()
                 .any(|c| matches!(c, egui::ViewportCommand::Minimized(true)))
+        );
+        let _ = frame(&ctx, &mut app, vec![key(Key::ArrowDown), key(Key::Tab)]);
+        assert!(
+            !ctx.memory(|m| m.has_focus(egui::Id::unique("query"))),
+            "Consuming result arrows must not swallow Tab focus navigation"
         );
     }
 }
