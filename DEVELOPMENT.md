@@ -70,7 +70,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 python3 -m unittest discover -s apps/native -p 'test_*.py'
 ```
 
-`Native CI` builds/tests on macOS ARM64, macOS Intel, Windows x64 and Linux x64. The shared frontend enables AccessKit, but this work remains in progress and has not received final native verification. CI is not a substitute for physical input/IME, screen-reader, mixed-DPI or Wayland acceptance; those acceptance checks remain open. The Linux orb cannot compile AppKit or execute Windows binaries.
+`Native CI` builds/tests on macOS ARM64, macOS Intel, Windows x64 and Linux x64 after pushes to `main`, not on pull requests. Run the checks above locally before merging; use **Actions → Native CI → Run workflow** to test a branch manually. Cloudflare Workers Builds checks are separate and remain unchanged. The shared frontend enables AccessKit, but this work remains in progress and has not received final native verification. CI is not a substitute for physical input/IME, screen-reader, mixed-DPI or Wayland acceptance; those acceptance checks remain open. The Linux orb cannot compile AppKit or execute Windows binaries.
 
 Successful CI also uploads `unsigned-test-packages-<runner>` artifacts for seven days. These are native test installers, not signed public releases: use disposable profiles, and expect operating-system trust warnings. CI packages locally without installing or publishing a release. All desktop clients use dark Graphite surfaces. Windows retains its high-contrast startup palette; it no longer uses native Edit/ListBox controls.
 

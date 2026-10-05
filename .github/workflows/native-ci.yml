@@ -1,8 +1,9 @@
 name: Native CI
+# Automatic CI runs on main only; use Run workflow to test a branch.
 on:
-  pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
