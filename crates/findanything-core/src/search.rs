@@ -15,8 +15,32 @@ const FILE_RESULT_LIMIT: usize = 6;
 const SEMANTIC_RESULT_LIMIT: usize = 3;
 const SEMANTIC_THRESHOLD: f32 = 0.62;
 
+// Application/action metadata is immutable for the lifetime of the engine.
+// Keep its normalized search text alongside the original display/launch data.
+struct IndexedEntity {
+    entity: Entity,
+    title: String,
+    aliases: Vec<String>,
+    searchable: String,
+}
+
+impl IndexedEntity {
+    fn new(entity: Entity) -> Self {
+        Self {
+            title: normalize(&entity.title),
+            aliases: entity
+                .aliases
+                .iter()
+                .map(|alias| normalize(alias))
+                .collect(),
+            searchable: normalize(&entity.searchable_text()),
+            entity,
+        }
+    }
+}
+
 pub struct SearchEngine {
-    entities: Vec<Entity>,
+    entities: Vec<IndexedEntity>,
     usage: UsageStore,
     semantic: SemanticIndex,
     transient_files: Mutex<HashMap<String, Entity>>,
@@ -36,7 +60,7 @@ impl SearchEngine {
         semantic.warm_in_background(entities.clone());
 
         Ok(Self {
-            entities,
+            entities: entities.into_iter().map(IndexedEntity::new).collect(),
             usage,
             semantic,
             transient_files: Mutex::new(HashMap::new()),
@@ -55,9 +79,10 @@ impl SearchEngine {
         let mut ranked = self
             .entities
             .iter()
-            .filter_map(|entity| {
+            .filter_map(|indexed| {
+                let entity = &indexed.entity;
                 rank_entity(
-                    entity,
+                    indexed,
                     &query,
                     semantic_scores.get(&entity.id).copied(),
                     usage.get(&entity.id).unwrap_or(&UsageSignals::default()),
@@ -108,6 +133,7 @@ impl SearchEngine {
         let entity = self
             .entities
             .iter()
+            .map(|indexed| &indexed.entity)
             .find(|entity| entity.id == id)
             .cloned()
             .or_else(|| {
@@ -129,11 +155,12 @@ impl SearchEngine {
 }
 
 fn rank_entity(
-    entity: &Entity,
+    indexed: &IndexedEntity,
     query: &str,
     semantic_similarity: Option<f32>,
     usage: &UsageSignals,
 ) -> Option<SearchResult> {
+    let entity = &indexed.entity;
     if query.is_empty() {
         let type_prior = match entity.kind {
             EntityKind::SystemAction => 18.0,
@@ -152,7 +179,7 @@ fn rank_entity(
         ));
     }
 
-    let (lexical, lexical_reason) = lexical_score(entity, query);
+    let (lexical, lexical_reason) = lexical_score(indexed, query);
     let semantic = semantic_similarity
         .filter(|similarity| *similarity >= SEMANTIC_THRESHOLD)
         .map(|similarity| ((similarity - SEMANTIC_THRESHOLD) * 100.0).min(32.0))
@@ -175,14 +202,13 @@ fn rank_entity(
     Some(to_result(entity, score, reason))
 }
 
-fn lexical_score(entity: &Entity, query: &str) -> (f32, &'static str) {
-    let title = normalize(&entity.title);
-    let aliases = entity
-        .aliases
-        .iter()
-        .map(|alias| normalize(alias))
-        .collect::<Vec<_>>();
-    let searchable = normalize(&entity.searchable_text());
+fn lexical_score(entity: &IndexedEntity, query: &str) -> (f32, &'static str) {
+    let IndexedEntity {
+        title,
+        aliases,
+        searchable,
+        ..
+    } = entity;
 
     if title == query {
         return (110.0, "Exact name");
@@ -197,12 +223,14 @@ fn lexical_score(entity: &Entity, query: &str) -> (f32, &'static str) {
         return (88.0, "Keyword starts with query");
     }
 
-    let query_tokens = query.split_whitespace().collect::<Vec<_>>();
-    if !query_tokens.is_empty() && query_tokens.iter().all(|token| searchable.contains(token)) {
+    let query_tokens = query.split_whitespace();
+    if query_tokens.clone().next().is_some()
+        && query_tokens.clone().all(|token| searchable.contains(token))
+    {
         let title_or_alias = aliases
             .iter()
-            .chain(std::iter::once(&title))
-            .any(|candidate| query_tokens.iter().all(|token| candidate.contains(token)));
+            .chain(std::iter::once(title))
+            .any(|candidate| query_tokens.clone().all(|token| candidate.contains(token)));
         return if title_or_alias {
             (72.0, "Keyword match")
         } else {
@@ -212,7 +240,7 @@ fn lexical_score(entity: &Entity, query: &str) -> (f32, &'static str) {
 
     let fuzzy = aliases
         .iter()
-        .chain(std::iter::once(&title))
+        .chain(std::iter::once(title))
         .map(|candidate| normalized_levenshtein(query, candidate) as f32)
         .fold(0.0_f32, f32::max);
     if fuzzy >= 0.7 {
@@ -304,7 +332,7 @@ pub fn normalize(value: &str) -> String {
 mod tests {
     use std::path::PathBuf;
 
-    use super::{lexical_score, normalize, rank_entity};
+    use super::{IndexedEntity, lexical_score, normalize, rank_entity};
     use crate::model::{Entity, EntityKind, LaunchTarget};
     use crate::usage::{UsageSignals, unix_timestamp};
 
@@ -327,25 +355,118 @@ mod tests {
 
     #[test]
     fn exact_metadata_keyword_is_a_strong_match() {
-        let numi = app("Numi", &["calculator", "unit converter"]);
+        let numi = IndexedEntity::new(app("Numi", &["calculator", "unit converter"]));
         assert_eq!(lexical_score(&numi, "calculator").0, 106.0);
     }
 
     #[test]
     fn fuzzy_matching_accepts_typos_without_matching_merely_similar_names() {
-        let calculator = app("Calculator", &[]);
-        let calendar = app("Calendar", &[]);
+        let calculator = IndexedEntity::new(app("Calculator", &[]));
+        let calendar = IndexedEntity::new(app("Calendar", &[]));
 
         assert!(lexical_score(&calculator, "calcuator").0 > 0.0);
         assert_eq!(lexical_score(&calendar, "calculator").0, 0.0);
+    }
+
+    #[test]
+    fn lexical_scores_preserve_unicode_metadata_and_match_precedence() {
+        let mut entity = app(
+            "Café Studio",
+            &["Wi-Fi", "Résumé Editor", "unit", "converter"],
+        );
+        entity.subtitle = "Desktop tools".into();
+        entity.description = "Open a project using wireless networking".into();
+        let entity = IndexedEntity::new(entity);
+
+        for (raw_query, expected) in [
+            (" CAFÉ--STUDIO ", (110.0, "Exact name")),
+            ("WI-FI!", (106.0, "Exact app keyword")),
+            ("café", (92.0, "Name starts with query")),
+            ("résumé", (88.0, "Keyword starts with query")),
+            ("studio café", (72.0, "Keyword match")),
+            ("editor résumé", (72.0, "Keyword match")),
+            ("unit converter", (58.0, "Metadata match")),
+            ("desktop wireless", (58.0, "Metadata match")),
+            ("unrelated", (0.0, "")),
+        ] {
+            assert_eq!(
+                lexical_score(&entity, &normalize(raw_query)),
+                expected,
+                "{raw_query}"
+            );
+        }
+
+        let result = rank_entity(&entity, "café studio", None, &UsageSignals::default()).unwrap();
+        assert_eq!(result.id, "app:Café Studio");
+        assert_eq!(result.title, "Café Studio");
+        assert_eq!(result.subtitle, "Desktop tools");
+        assert_eq!(result.score, 110.0);
+
+        let calculator = IndexedEntity::new(app("Calculator", &["calculator", "calculate"]));
+        assert_eq!(
+            lexical_score(&calculator, "calculator"),
+            (110.0, "Exact name")
+        );
+        assert_eq!(
+            lexical_score(&calculator, "calc"),
+            (92.0, "Name starts with query")
+        );
+        let (score, reason) = lexical_score(&calculator, "calcuator");
+        assert!((score - 61.2).abs() < 0.001);
+        assert_eq!(reason, "Fuzzy match");
+    }
+
+    // Isolates catalogue matching from ONNX, SQLite, and filesystem latency.
+    // Run in release mode with --ignored --nocapture to compare hot-path changes.
+    #[test]
+    #[ignore = "manual lexical search benchmark"]
+    fn benchmark_lexical_catalogue() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        let entities = (0..500)
+            .map(|index| {
+                IndexedEntity::new(app(
+                    &format!("Code Studio {index}"),
+                    &["editor", "programming", "source code"],
+                ))
+            })
+            .collect::<Vec<_>>();
+        let queries = [
+            "c",
+            "co",
+            "code",
+            "editor",
+            "source studio",
+            "unmatched",
+            "code stduio",
+        ];
+        let iterations = 100;
+        let started = Instant::now();
+        let mut total = 0.0;
+        for _ in 0..iterations {
+            for query in queries {
+                for entity in &entities {
+                    total += black_box(lexical_score(black_box(entity), black_box(query))).0;
+                }
+            }
+        }
+        println!(
+            "500 entities, {} searches: {:?} total, {:?}/search, score checksum {}",
+            iterations * queries.len(),
+            started.elapsed(),
+            started.elapsed() / (iterations * queries.len()) as u32,
+            black_box(total),
+        );
     }
 
     #[cfg(target_os = "macos")]
     #[test]
     fn brightness_metadata_resolves_to_displays() {
         let mut matches = crate::actions::system_actions()
-            .iter()
-            .filter_map(|entity| rank_entity(entity, "brightness", None, &UsageSignals::default()))
+            .into_iter()
+            .map(IndexedEntity::new)
+            .filter_map(|entity| rank_entity(&entity, "brightness", None, &UsageSignals::default()))
             .collect::<Vec<_>>();
         matches.sort_by(|left, right| right.score.total_cmp(&left.score));
 
@@ -357,8 +478,8 @@ mod tests {
 
     #[test]
     fn one_explicit_choice_beats_an_exact_name_next_time() {
-        let numi = app("Numi", &["calculator"]);
-        let calculator = app("Calculator", &[]);
+        let numi = IndexedEntity::new(app("Numi", &["calculator"]));
+        let calculator = IndexedEntity::new(app("Calculator", &[]));
         let learned = UsageSignals {
             query_count: 1,
             global_count: 1,
