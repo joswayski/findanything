@@ -1,11 +1,12 @@
 """Checks the shared source and drift guard, not just today's generated files."""
-from pathlib import Path
+
 import math
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 from design import generate_icons
 
@@ -30,19 +31,28 @@ class GraphiteTests(unittest.TestCase):
                 path = design / name
                 original = path.read_text()
                 path.write_text(original + "stale\n")
-                self.assertNotEqual(subprocess.run(command + ["--check"], capture_output=True).returncode, 0)
+                self.assertNotEqual(
+                    subprocess.run(command + ["--check"], capture_output=True).returncode, 0
+                )
                 path.unlink()
-                self.assertNotEqual(subprocess.run(command + ["--check"], capture_output=True).returncode, 0)
+                self.assertNotEqual(
+                    subprocess.run(command + ["--check"], capture_output=True).returncode, 0
+                )
                 path.write_text(original)
-            self.assertEqual(subprocess.run(command + ["--check"], capture_output=True).returncode, 0)
+            self.assertEqual(
+                subprocess.run(command + ["--check"], capture_output=True).returncode, 0
+            )
 
 
 class LucideTests(unittest.TestCase):
     def test_relative_coordinates_subpaths_and_close(self):
-        self.assertEqual(generate_icons.path_points("M3 7h5v-2l-1 4z m10 2 3 4H20V6"), [
-            [(3, 7), (8, 7), (8, 5), (7, 9), (3, 7)],
-            [(13, 9), (16, 13), (20, 13), (20, 6)],
-        ])
+        self.assertEqual(
+            generate_icons.path_points("M3 7h5v-2l-1 4z m10 2 3 4H20V6"),
+            [
+                [(3, 7), (8, 7), (8, 5), (7, 9), (3, 7)],
+                [(13, 9), (16, 13), (20, 13), (20, 6)],
+            ],
+        )
 
     def test_circular_arc_direction_and_radius(self):
         clockwise = generate_icons.path_points("M2 0a2 2 0 0 1 -2 2")[0]
@@ -56,7 +66,7 @@ class LucideTests(unittest.TestCase):
         self.assertAlmostEqual(midpoint[0], 2 - math.sqrt(2))
         self.assertAlmostEqual(midpoint[1], 2 - math.sqrt(2))
         for x, y in clockwise:
-            self.assertAlmostEqual(x*x + y*y, 4)
+            self.assertAlmostEqual(x * x + y * y, 4)
 
     def test_unsupported_paths_fail(self):
         for data in ("M0 0Q1 2 3 4", "M0 0A2 3 0 0 1 4 5", "M0 0L2"):
@@ -77,9 +87,13 @@ class LucideTests(unittest.TestCase):
                 path = design / name
                 original = path.read_text()
                 path.write_text(original + "stale\n")
-                self.assertNotEqual(subprocess.run(command + ["--check"], capture_output=True).returncode, 0)
+                self.assertNotEqual(
+                    subprocess.run(command + ["--check"], capture_output=True).returncode, 0
+                )
                 path.unlink()
-                self.assertNotEqual(subprocess.run(command + ["--check"], capture_output=True).returncode, 0)
+                self.assertNotEqual(
+                    subprocess.run(command + ["--check"], capture_output=True).returncode, 0
+                )
                 path.write_text(original)
             subprocess.run(command + ["--check"], check=True, capture_output=True)
 

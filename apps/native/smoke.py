@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """Finite, private-X11 smoke: real native windows/input; no installed profile or network."""
+
 import argparse
 import json
 import os
-from pathlib import Path
 import signal
 import subprocess
 import tempfile
 import time
+from pathlib import Path
 
 
 def main():
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument("--binary", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--lifecycle", action="store_true", help="Requires a keyword-only binary; exercises real discovery/launch and hidden-instance recovery")
+    parser.add_argument(
+        "--lifecycle",
+        action="store_true",
+        help="Requires a keyword-only binary; exercises real discovery/launch and hidden-instance recovery",
+    )
     args = parser.parse_args()
     binary = args.binary.resolve()
     args.output.mkdir(parents=True, exist_ok=False)
@@ -22,17 +27,28 @@ def main():
         # Preserve GIO MIME detection without exposing installed desktop entries
         # to the disposable discovery fixture.
         (Path(temporary) / "mime").symlink_to("/usr/share/mime", target_is_directory=True)
-        env = dict(os.environ, HOME=temporary, XDG_DATA_HOME=temporary, XDG_CONFIG_HOME=temporary,
-                   XDG_RUNTIME_DIR=temporary, XDG_DATA_DIRS=temporary, LIBGL_ALWAYS_SOFTWARE="1",
-                   WINIT_UNIX_BACKEND="x11", WGPU_BACKEND="gl")
+        env = dict(
+            os.environ,
+            HOME=temporary,
+            XDG_DATA_HOME=temporary,
+            XDG_CONFIG_HOME=temporary,
+            XDG_RUNTIME_DIR=temporary,
+            XDG_DATA_DIRS=temporary,
+            LIBGL_ALWAYS_SOFTWARE="1",
+            WINIT_UNIX_BACKEND="x11",
+            WGPU_BACKEND="gl",
+        )
         env.pop("WAYLAND_DISPLAY", None)
         processes = []
         logs = []
         try:
+
             def start(command, name):
                 log = open(Path(temporary) / (name + ".log"), "w")
                 logs.append(log)
-                process = subprocess.Popen(command, env=env, stdout=log, stderr=log, start_new_session=True)
+                process = subprocess.Popen(
+                    command, env=env, stdout=log, stderr=log, start_new_session=True
+                )
                 processes.append(process)
                 return process
 
@@ -47,12 +63,27 @@ def main():
 
             display_file = Path(temporary) / "display"
             with display_file.open("w") as display:
-                xvfb = subprocess.Popen(["Xvfb", "-displayfd", str(display.fileno()), "-screen", "0", "1280x800x24", "-nolisten", "tcp"],
-                                        pass_fds=(display.fileno(),), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                xvfb = subprocess.Popen(
+                    [
+                        "Xvfb",
+                        "-displayfd",
+                        str(display.fileno()),
+                        "-screen",
+                        "0",
+                        "1280x800x24",
+                        "-nolisten",
+                        "tcp",
+                    ],
+                    pass_fds=(display.fileno(),),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
                 processes.append(xvfb)
                 for _ in range(100):
-                    if display_file.read_text().strip(): break
-                    time.sleep(.05)
+                    if display_file.read_text().strip():
+                        break
+                    time.sleep(0.05)
                 env["DISPLAY"] = ":" + display_file.read_text().strip()
             # The tested app sees only disposable desktop entries. The window
             # manager still needs the distribution's installed theme resources.
@@ -62,11 +93,19 @@ def main():
             for _ in range(100):
                 if wm.poll() is not None:
                     raise RuntimeError(Path(logs[-1].name).read_text())
-                ready = subprocess.run(["xprop", "-root", "_NET_SUPPORTING_WM_CHECK"], env=env, capture_output=True, text=True)
-                if "window id #" in ready.stdout: break
-                time.sleep(.05)
+                ready = subprocess.run(
+                    ["xprop", "-root", "_NET_SUPPORTING_WM_CHECK"],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                if "window id #" in ready.stdout:
+                    break
+                time.sleep(0.05)
             else:
-                raise RuntimeError("Window manager did not become ready: " + Path(logs[-1].name).read_text())
+                raise RuntimeError(
+                    "Window manager did not become ready: " + Path(logs[-1].name).read_text()
+                )
 
             def command(*args):
                 return subprocess.check_output(args, env=env, text=True).strip()
@@ -74,75 +113,137 @@ def main():
             for theme in ["dark", "light"]:
                 for state in ["results", "empty", "error"]:
                     probe = args.output / f"{theme}-{state}.json"
-                    app = start([str(binary), "--fixture", state, "--theme", theme, "--probe", str(probe.resolve())], f"{theme}-{state}")
+                    app = start(
+                        [
+                            str(binary),
+                            "--fixture",
+                            state,
+                            "--theme",
+                            theme,
+                            "--probe",
+                            str(probe.resolve()),
+                        ],
+                        f"{theme}-{state}",
+                    )
                     window = ""
                     for _ in range(200):
                         if app.poll() is not None:
-                            raise RuntimeError(f"native app exited: {app.returncode}\n" + Path(logs[-1].name).read_text())
-                        found = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Find Anything$"], env=env, capture_output=True, text=True)
+                            raise RuntimeError(
+                                f"native app exited: {app.returncode}\n"
+                                + Path(logs[-1].name).read_text()
+                            )
+                        found = subprocess.run(
+                            ["xdotool", "search", "--onlyvisible", "--name", "^Find Anything$"],
+                            env=env,
+                            capture_output=True,
+                            text=True,
+                        )
                         if found.returncode == 0:
                             window = found.stdout.strip().splitlines()[-1]
                             break
-                        time.sleep(.05)
+                        time.sleep(0.05)
                     assert window, "native window did not appear"
                     command("xdotool", "windowactivate", "--sync", window)
                     command("xdotool", "mousemove", "1", "1")
-                    time.sleep(.8)
+                    time.sleep(0.8)
                     command("import", "-window", window, str(args.output / f"{theme}-{state}.png"))
-                    canvas = command("convert", str(args.output / f"{theme}-{state}.png"), "-format", "%[hex:p{10,300}]", "info:")
-                    assert canvas.upper().startswith("161618"), f"Graphite canvas changed under {theme}: {canvas}"
+                    canvas = command(
+                        "convert",
+                        str(args.output / f"{theme}-{state}.png"),
+                        "-format",
+                        "%[hex:p{10,300}]",
+                        "info:",
+                    )
+                    assert canvas.upper().startswith("161618"), (
+                        f"Graphite canvas changed under {theme}: {canvas}"
+                    )
                     if state == "results":
                         command("xdotool", "key", "--clearmodifiers", "Down")
-                        time.sleep(.3)
-                        command("import", "-window", window, str(args.output / f"{theme}-selected.png"))
+                        time.sleep(0.3)
+                        command(
+                            "import", "-window", window, str(args.output / f"{theme}-selected.png")
+                        )
                         assert json.loads(probe.read_text())["selected"] == 1
                         command("xdotool", "type", "--clearmodifiers", "display")
-                        time.sleep(.4)
-                        command("import", "-window", window, str(args.output / f"{theme}-query.png"))
+                        time.sleep(0.4)
+                        command(
+                            "import", "-window", window, str(args.output / f"{theme}-query.png")
+                        )
                         typed = json.loads(probe.read_text())
                         assert typed["query"] == "display" and typed["results"] == ["Displays"]
-                        command("xdotool", "mousemove", "--window", window, "634", "46", "click", "1")
-                        time.sleep(.3)
+                        command(
+                            "xdotool", "mousemove", "--window", window, "634", "46", "click", "1"
+                        )
+                        time.sleep(0.3)
                         menu_capture = str(args.output / f"{theme}-menu.png")
                         command("import", "-window", window, menu_capture)
                         command("xdotool", "key", "--clearmodifiers", "Escape")
-                        time.sleep(.2)
-                        assert command("xdotool", "getwindowfocus") == window, "Escape in menu must keep the launcher open"
-                        command("xdotool", "mousemove", "--window", window, "580", "46", "click", "1")
-                        time.sleep(.4)
+                        time.sleep(0.2)
+                        assert command("xdotool", "getwindowfocus") == window, (
+                            "Escape in menu must keep the launcher open"
+                        )
+                        command(
+                            "xdotool", "mousemove", "--window", window, "580", "46", "click", "1"
+                        )
+                        time.sleep(0.4)
                         cleared = args.output / f"{theme}-cleared.png"
                         command("import", "-window", window, str(cleared))
                         cleared_state = json.loads(probe.read_text())
                         assert cleared_state["query"] == "" and cleared_state["queryFocused"]
-                        assert cleared_state["results"] == ["Browser", "Displays", "Project notes.md"], "Clear must restore all results"
+                        assert cleared_state["results"] == [
+                            "Browser",
+                            "Displays",
+                            "Project notes.md",
+                        ], "Clear must restore all results"
                     command("xdotool", "windowsize", window, "560", "360")
-                    time.sleep(.3)
-                    command("import", "-window", window, str(args.output / f"{theme}-{state}-minimum.png"))
+                    time.sleep(0.3)
+                    command(
+                        "import",
+                        "-window",
+                        window,
+                        str(args.output / f"{theme}-{state}-minimum.png"),
+                    )
                     assert app.poll() is None
                     stop(app)
                     for _ in range(100):
-                        remaining = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Find Anything$"], env=env, capture_output=True)
-                        if remaining.returncode != 0: break
-                        time.sleep(.05)
+                        remaining = subprocess.run(
+                            ["xdotool", "search", "--onlyvisible", "--name", "^Find Anything$"],
+                            env=env,
+                            capture_output=True,
+                        )
+                        if remaining.returncode != 0:
+                            break
+                        time.sleep(0.05)
                     else:
                         raise AssertionError("Fixture window remained after process cleanup")
-            print("PASS: 6 native fixture windows, Graphite palette under light/dark, keyboard selection/search, menu Escape, minimum size; screenshots captured")
+            print(
+                "PASS: 6 native fixture windows, Graphite palette under light/dark, keyboard selection/search, menu Escape, minimum size; screenshots captured"
+            )
             if args.lifecycle:
                 applications = Path(temporary) / "applications"
                 applications.mkdir()
                 marker = Path(temporary) / "opened"
-                (applications / "smoke.desktop").write_text(f"[Desktop Entry]\nType=Application\nName=Smoke Marker\nExec=/usr/bin/touch {marker}\n")
+                (applications / "smoke.desktop").write_text(
+                    f"[Desktop Entry]\nType=Application\nName=Smoke Marker\nExec=/usr/bin/touch {marker}\n"
+                )
                 app = start([str(binary), "--theme", "dark"], "live")
 
                 def visible():
-                    result = subprocess.run(["xdotool", "search", "--onlyvisible", "--name", "^Find Anything$"], env=env, capture_output=True, text=True)
+                    result = subprocess.run(
+                        ["xdotool", "search", "--onlyvisible", "--name", "^Find Anything$"],
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                    )
                     return result.stdout.strip().splitlines() if result.returncode == 0 else []
 
                 def wait_for(predicate, description):
                     for _ in range(100):
-                        if app.poll() is not None: raise RuntimeError(Path(logs[-1].name).read_text())
-                        if predicate(): return
-                        time.sleep(.1)
+                        if app.poll() is not None:
+                            raise RuntimeError(Path(logs[-1].name).read_text())
+                        if predicate():
+                            return
+                        time.sleep(0.1)
                     raise AssertionError("Timed out: " + description)
 
                 wait_for(visible, "initial live window")
@@ -160,7 +261,9 @@ def main():
                 command("xdotool", "key", "--clearmodifiers", "ctrl+shift+space")
                 wait_for(visible, "global shortcut restores owner")
                 command("import", "-window", visible()[-1], str(args.output / "live-reopened.png"))
-                print("PASS: real discovery/launch, hide on success, secondary-instance focus, Escape and global shortcut recovery")
+                print(
+                    "PASS: real discovery/launch, hide on success, secondary-instance focus, Escape and global shortcut recovery"
+                )
         except Exception:
             for log in logs:
                 print(Path(log.name).read_text(), flush=True)

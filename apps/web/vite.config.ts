@@ -30,6 +30,10 @@ export default defineConfig({
     }),
     react(),
   ],
+  // Retain Vite 7's browser floor instead of adopting Vite 8's newer default.
+  build: {
+    target: ["chrome107", "edge107", "firefox104", "safari16"],
+  },
   define: {
     __BUILD_TIME__: JSON.stringify(siteData.buildTime),
     __RECENT_ITEMS__: JSON.stringify(siteData.recentItems),

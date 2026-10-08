@@ -156,7 +156,10 @@ a {
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
-  transition: background-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .github-button:hover {

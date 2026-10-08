@@ -9,6 +9,7 @@ apps/native/macos/.swiftpm/
 releases/
 staging/
 __pycache__/
+.ruff_cache/
 .fastembed_cache/
 .amp/portals/*
 .DS_Store
