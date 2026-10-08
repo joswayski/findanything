@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Stage and package native builds with pinned Velopack. Never installs or publishes."""
+
 import argparse
 import os
-from pathlib import Path
 import platform
 import plistlib
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 VPK_VERSION = "1.2.158"
@@ -33,7 +34,9 @@ def main():
     help_text = re.sub(r"\x1b\[[0-9;]*m", "", help_text)
     version = re.search(r"\bVelopack CLI\s+(\d+\.\d+\.\d+)\b", help_text)
     if version is None or version.group(1) != VPK_VERSION:
-        parser.error(f"install vpk {VPK_VERSION} to match the Rust SDK; CLI returned {help_text[:300]!r}")
+        parser.error(
+            f"install vpk {VPK_VERSION} to match the Rust SDK; CLI returned {help_text[:300]!r}"
+        )
     system = platform.system()
     feed = channel(system, platform.machine())
     source = ROOT / "target/release"
@@ -52,16 +55,31 @@ def main():
         shutil.copy2(ROOT / "apps/native/icons/icon.icns", content / "Resources/icon.icns")
         shutil.copytree(ROOT / "apps/native/design/fonts", content / "Resources/fonts")
         with (content / "Info.plist").open("wb") as file:
-            plistlib.dump({"CFBundleIdentifier": "ing.findanyth.desktop", "CFBundleName": "Find Anything",
-                          "CFBundleExecutable": exe, "CFBundlePackageType": "APPL", "CFBundleIconFile": "icon",
-                          "CFBundleVersion": args.version, "CFBundleShortVersionString": args.version,
-                          "LSMinimumSystemVersion": "13.0", "LSUIElement": True,
-                          "NSHighResolutionCapable": True}, file)
+            plistlib.dump(
+                {
+                    "CFBundleIdentifier": "ing.findanyth.desktop",
+                    "CFBundleName": "Find Anything",
+                    "CFBundleExecutable": exe,
+                    "CFBundlePackageType": "APPL",
+                    "CFBundleIconFile": "icon",
+                    "CFBundleVersion": args.version,
+                    "CFBundleShortVersionString": args.version,
+                    "LSMinimumSystemVersion": "13.0",
+                    "LSUIElement": True,
+                    "NSHighResolutionCapable": True,
+                },
+                file,
+            )
         stage = bundle
         if args.signed:
-            sign = ["--signAppIdentity", os.environ["APPLE_APP_IDENTITY"],
-                    "--signInstallIdentity", os.environ["APPLE_INSTALLER_IDENTITY"],
-                    "--notaryProfile", "findanything-release"]
+            sign = [
+                "--signAppIdentity",
+                os.environ["APPLE_APP_IDENTITY"],
+                "--signInstallIdentity",
+                os.environ["APPLE_INSTALLER_IDENTITY"],
+                "--notaryProfile",
+                "findanything-release",
+            ]
         icon = ROOT / "apps/native/icons/icon.icns"
     else:
         shutil.copy2(source / exe, stage / exe)
@@ -69,15 +87,39 @@ def main():
             for library in source.glob(pattern):
                 shutil.copy2(library, stage / library.name)
         if system == "Windows" and args.signed:
-            sign = ["--signParams", f'/sha1 {os.environ["WINDOWS_CERT_THUMBPRINT"]} /fd SHA256 /tr https://timestamp.digicert.com /td SHA256']
+            sign = [
+                "--signParams",
+                f"/sha1 {os.environ['WINDOWS_CERT_THUMBPRINT']} /fd SHA256 /tr https://timestamp.digicert.com /td SHA256",
+            ]
     notices = stage / "Contents/Resources" if system == "Darwin" else stage
     shutil.copy2(ROOT / "apps/native/design/lucide/LICENSE", notices / "Lucide-LICENSE.txt")
     shutil.copy2(ROOT / "apps/native/design/fonts/LICENSE.txt", notices / "Inter-LICENSE.txt")
     # Distinct IDs also keep installer/archive asset names unique when all four
     # feeds are uploaded into the same GitHub release.
-    subprocess.run(["vpk", "pack", "--packId", f"FindAnything-{feed.removeprefix('preview-')}", "--packTitle", "Find Anything",
-                    "--packVersion", args.version, "--packDir", str(stage), "--mainExe", exe,
-                    "--channel", feed, "--icon", str(icon), "--outputDir", str(args.output.resolve()), *sign], check=True)
+    subprocess.run(
+        [
+            "vpk",
+            "pack",
+            "--packId",
+            f"FindAnything-{feed.removeprefix('preview-')}",
+            "--packTitle",
+            "Find Anything",
+            "--packVersion",
+            args.version,
+            "--packDir",
+            str(stage),
+            "--mainExe",
+            exe,
+            "--channel",
+            feed,
+            "--icon",
+            str(icon),
+            "--outputDir",
+            str(args.output.resolve()),
+            *sign,
+        ],
+        check=True,
+    )
 
 
 if __name__ == "__main__":
