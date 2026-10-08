@@ -104,7 +104,7 @@ install_rust_toolchain() {
 run_step 'Check Node.js toolchain' check_node
 run_step 'Install native desktop prerequisites' install_system_packages
 run_step 'Install Rust toolchain' install_rust_toolchain
-run_step 'Install JavaScript workspace dependencies' npm install --no-save --no-audit --no-fund
+run_step 'Install locked JavaScript workspace dependencies' npm ci --no-audit --no-fund
 run_step 'Fetch locked Rust dependencies' cargo fetch --locked
 
 printf '\nOrb setup complete for %s.\n' "$repo_root"

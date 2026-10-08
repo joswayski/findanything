@@ -18,6 +18,18 @@ The site runs at [http://localhost:5174](http://localhost:5174).
 npm run build:web
 ```
 
+This command runs Oxlint correctness checks and Oxfmt's formatting check for the
+website and native JavaScript launcher before building. Run `npm run format` to
+apply formatting; generated routes, native/generated assets and vendored files
+are not reformatted. Native CI and Cloudflare's existing build command use these
+same gates. There are no JavaScript test suites or unused JS test runner.
+
+Vite 8.3.3 and React plugin 6.1.2 use Rolldown/Oxc. The explicit browser target
+retains Vite 7's Chrome/Edge 107, Firefox 104 and Safari 16 floor. TypeScript
+7.0.2 is the stable native Go compiler, exposed through the usual `tsc` command;
+`npm run typecheck --workspace @findanything/web` checks both source and build
+configuration. Node 24+ and npm remain the runtime and package manager.
+
 The build fetches recent public GitHub releases. Until releases exist, it shows recent commits from `main`. TanStack Start prerenders the route into `dist/client/index.html`, and the result is also embedded in the client assets, so browsers do not call GitHub at runtime.
 
 ## Cloudflare

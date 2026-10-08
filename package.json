@@ -10,11 +10,18 @@
     "dev": "node apps/native/dev.mjs",
     "dev:web": "npm run dev --workspace @findanything/web",
     "build": "node apps/native/dev.mjs --build",
-    "build:web": "npm run build --workspace @findanything/web",
+    "build:web": "npm run lint && npm run format:check && npm run build --workspace @findanything/web",
     "preview:web": "npm run build:web && npm run preview --workspace @findanything/web",
     "deploy:web": "npm run build:web && npm run deploy --workspace @findanything/web",
     "check": "npm run check:desktop && npm run build:web",
-    "check:desktop": "cargo check --workspace --all-targets --locked"
+    "check:desktop": "cargo check --workspace --all-targets --locked",
+    "lint": "oxlint --deny-warnings apps/web apps/native/dev.mjs",
+    "format": "oxfmt --write \"apps/**/*.{js,mjs,ts,tsx,css}\" \"**/package.json\" \"apps/web/tsconfig*.json\" \".ox*.json\"",
+    "format:check": "oxfmt --check \"apps/**/*.{js,mjs,ts,tsx,css}\" \"**/package.json\" \"apps/web/tsconfig*.json\" \".ox*.json\""
+  },
+  "devDependencies": {
+    "oxfmt": "0.72.0",
+    "oxlint": "1.87.0"
   },
   "engines": {
     "node": ">=24"

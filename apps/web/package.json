@@ -6,7 +6,8 @@
   "scripts": {
     "generate": "node scripts/generate-site-data.mjs",
     "dev": "npm run generate && vite dev",
-    "build": "npm run generate && vite build && tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "build": "npm run generate && vite build && npm run typecheck",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "preview": "wrangler dev --config ../../wrangler.jsonc",
     "deploy": "wrangler deploy --config ../../wrangler.jsonc"
   },
@@ -20,9 +21,9 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "^5.0.0",
-    "vite": "^7.0.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.3",
     "wrangler": "^4.147.0"
   }
 }
