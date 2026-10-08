@@ -40,9 +40,7 @@ async function fetchRecentReleases() {
 
 function pullRequestNumber(title) {
   return (
-    title.match(/\(#(\d+)\)$/u)?.[1] ??
-    title.match(/^Merge pull request #(\d+)/u)?.[1] ??
-    null
+    title.match(/\(#(\d+)\)$/u)?.[1] ?? title.match(/^Merge pull request #(\d+)/u)?.[1] ?? null
   );
 }
 
@@ -59,9 +57,7 @@ function toRecentChange(entry) {
   return {
     key: entry.sha,
     title: prNumber ? title.replace(/\s+\(#\d+\)$/u, "") : title,
-    url: prNumber
-      ? `https://github.com/${REPOSITORY}/pull/${prNumber}`
-      : entry.html_url,
+    url: prNumber ? `https://github.com/${REPOSITORY}/pull/${prNumber}` : entry.html_url,
     occurredAt,
     detail: prNumber ? `PR #${prNumber}` : entry.sha.slice(0, 7),
   };

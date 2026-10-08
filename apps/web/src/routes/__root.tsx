@@ -1,10 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  createRootRoute,
-  HeadContent,
-  Outlet,
-  Scripts,
-} from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import stylesheet from "../styles.css?url";
 
 const DESCRIPTION =
