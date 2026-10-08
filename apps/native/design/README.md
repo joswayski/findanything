@@ -10,8 +10,8 @@ features. The website is separate from this desktop contract.
 Edit `tokens.json`, then run:
 
 ```sh
-python apps/native/design/generate.py
-python apps/native/design/generate.py --check
+uv run --no-project python apps/native/design/generate.py
+uv run --no-project python apps/native/design/generate.py --check
 ```
 
 The checked-in Rust constants and AppKit colors/dimensions are generated. CI
@@ -69,8 +69,8 @@ the Swift paths with its drawing APIs; the shared egui frontend draws the Rust
 paths. Rasterization can differ, but the source geometry does not.
 
 ```sh
-python apps/native/design/generate_icons.py
-python apps/native/design/generate_icons.py --check
+uv run --no-project python apps/native/design/generate_icons.py
+uv run --no-project python apps/native/design/generate_icons.py --check
 ```
 
 CI checks generated output. New icons must come from this pinned source (or an

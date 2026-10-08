@@ -37,7 +37,7 @@ def main():
         else:
             path.write_text(content)
     if stale:
-        parser.exit(1, "Stale Graphite tokens: " + ", ".join(stale) + "\nRun python apps/native/design/generate.py\n")
+        parser.exit(1, "Stale Graphite tokens: " + ", ".join(stale) + "\nRun uv run --no-project python apps/native/design/generate.py\n")
     print("Graphite tokens: " + ("up to date" if args.check else "generated"))
 
 

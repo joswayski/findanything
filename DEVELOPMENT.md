@@ -12,13 +12,19 @@ Find Anything has a shared Rust core in `crates/findanything-core`, an AppKit cl
   and GIO (`gio`). There is no GTK UI dependency. The release build targets
   Ubuntu 22.04 or compatible newer distributions, not every Linux distribution.
 - Node.js 24+ for the website and optional `npm` convenience commands; the desktop itself does not need Node.
+- Python 3.9+ for native support scripts/tests, and [uv](https://docs.astral.sh/uv/)
+  (CI/orbs pin 0.12.23). These scripts use only the standard library: `uv run
+  --no-project` uses the available interpreter without creating a project or
+  installing runtime dependencies. Use `--python 3.9` (or another supported
+  version) to select an interpreter explicitly. Ruff 0.16.10 is isolated/cached
+  through `uvx`, not installed into the scripts' runtime.
 
 Debian/Ubuntu prerequisites: `build-essential pkg-config libssl-dev libx11-dev libxkbcommon-dev libwayland-dev libglib2.0-bin`. Native smoke checks also use `xvfb xauth xdotool x11-utils openbox imagemagick`. `.agents/setup` installs these for orbs; no GTK or WebKit packages are required. AppImage packaging additionally requires `squashfs-tools` and `libfuse2`.
 
 ## Desktop app
 
 ```sh
-npm install
+npm ci
 npm run dev
 # Build only; never installs, registers login items, or publishes:
 npm run build
@@ -47,7 +53,7 @@ shortcut; otherwise Escape minimizes and Close quits (macOS retains its menu bar
 There is no auto-start-at-login registration yet.
 
 The desktop shells share the [Graphite design contract](apps/native/design/README.md).
-Change `apps/native/design/tokens.json`, run `python apps/native/design/generate.py`,
+Change `apps/native/design/tokens.json`, run `uv run --no-project python apps/native/design/generate.py`,
 and inspect matching native fixture states on all platforms. Generated token
 drift is checked in CI. Static Inter 4.1 Regular and SemiBold fonts are bundled
 on every platform; native frames and font rasterization remain platform-owned.
@@ -67,8 +73,18 @@ npm run check
 cargo fmt --all -- --check
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
-python3 -m unittest discover -s apps/native -p 'test_*.py'
+npm run check:python
 ```
+
+`npm run check` includes locked native compilation, the Python gates, and website
+lint/format/build/typechecks. `check:python` runs Ruff lint/format checks, both
+generated-output drift checks, and the existing eight unittest tests. Without
+Node, use `uvx ruff==0.16.10 check apps/native`,
+`uvx ruff==0.16.10 format --check apps/native`, and
+`uv run --no-project python -m unittest discover -s apps/native -p 'test_*.py'`;
+the generator `--check` commands are shown in the design contract. Fix formatting
+with `npm run format` (JS/TS/CSS) or `npm run format:python` (Python); Ruff import
+ordering can be applied with `uvx ruff==0.16.10 check --select I --fix apps/native`.
 
 `Native CI` builds/tests on macOS ARM64, macOS Intel, Windows x64 and Linux x64 after pushes to `main`, not on pull requests. Run the checks above locally before merging; use **Actions → Native CI → Run workflow** to test a branch manually. Cloudflare Workers Builds checks are separate and remain unchanged. The shared frontend enables AccessKit, but this work remains in progress and has not received final native verification. CI is not a substitute for physical input/IME, screen-reader, mixed-DPI or Wayland acceptance; those acceptance checks remain open. The Linux orb cannot compile AppKit or execute Windows binaries.
 
@@ -78,7 +94,7 @@ Native fixtures never initialize databases, updater hooks, model downloads, sing
 
 ```sh
 cargo build -p findanything-linux --no-default-features
-python3 apps/native/smoke.py --binary target/debug/findanything --output /tmp/findanything-smoke
+uv run --no-project python apps/native/smoke.py --binary target/debug/findanything --output /tmp/findanything-smoke
 # Deterministic shared fixture and renderer capture (also writes /tmp/linux.json):
 cargo run -p findanything-linux --no-default-features -- --fixture query --screenshot /tmp/linux.png
 # Shared Windows fixture/input smoke (PowerShell):
@@ -103,7 +119,7 @@ The shared updater uses pinned **Velopack 1.2.158**, not Tauri's updater. Instal
 Install .NET SDK 8 and `dotnet tool install --global vpk --version 1.2.158` on the target OS. After a release build, stage an **unsigned local test package** with:
 
 ```sh
-python apps/native/package.py --version 0.2.1 --stage /path/to/new-stage --output /path/to/releases
+uv run --no-project python apps/native/package.py --version 0.2.1 --stage /path/to/new-stage --output /path/to/releases
 ```
 
 The script refuses an existing staging directory. It does not install or publish. It produces macOS `.pkg`/portable bundles, Windows setup/portable packages, and a Linux AppImage. Preserve the original AppImage file and its `APPIMAGE` environment when launching it; running an extracted bare executable is not an installed update test. Linux packages still depend on compatible system graphics/GIO/OpenSSL libraries and require clean-machine validation. Installing to a user-writable location avoids elevation during replacement.

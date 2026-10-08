@@ -32,6 +32,16 @@ check_node() {
 	printf 'Using Node.js %s and npm %s.\n' "$(node --version)" "$(npm --version)"
 }
 
+install_python_tools() {
+	export PATH="$HOME/.local/bin:$PATH"
+	if ! command -v uv >/dev/null 2>&1 || [[ "$(uv --version)" != 'uv 0.12.23'* ]]; then
+		curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/0.12.23/install.sh | sh
+	fi
+	uv --version
+	uv run --no-project python --version
+	uvx ruff==0.16.10 --version
+}
+
 install_system_packages() {
 	local packages=(
 		build-essential
@@ -104,6 +114,7 @@ install_rust_toolchain() {
 run_step 'Check Node.js toolchain' check_node
 run_step 'Install native desktop prerequisites' install_system_packages
 run_step 'Install Rust toolchain' install_rust_toolchain
+run_step 'Install uv and cache pinned Ruff' install_python_tools
 run_step 'Install locked JavaScript workspace dependencies' npm ci --no-audit --no-fund
 run_step 'Fetch locked Rust dependencies' cargo fetch --locked
 

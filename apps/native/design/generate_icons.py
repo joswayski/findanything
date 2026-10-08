@@ -125,7 +125,7 @@ def main():
     for path, content in outputs().items():
         if args.check:
             if not path.exists() or path.read_text() != content:
-                parser.exit(1, f"Stale Lucide output: {path.name}; run python apps/native/design/generate_icons.py\n")
+                parser.exit(1, f"Stale Lucide output: {path.name}; run uv run --no-project python apps/native/design/generate_icons.py\n")
         else:
             path.write_text(content)
     print("Lucide icons: " + ("up to date" if args.check else "generated"))
