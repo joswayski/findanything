@@ -6,9 +6,10 @@
 
 ## Shipping
 
-Speed beats ceremony: there are no real users yet, so ship, watch, and fix forward.
+`main` is production: pushes deploy the website automatically. Speed beats ceremony: there are no real users yet, so ship small, watch it land, and fix forward.
 
-- Commit and push straight to `main`; no pull requests. Run the local checks for what you changed first (`DEVELOPMENT.md` → Validation), then `git pull --rebase origin main` and push. Never force-push `main` or rewrite other agents' commits.
+- Push a branch and open a draft pull request instead of pushing to `main` when the work is unfinished and you have to stop (session ending, disk full, missing toolchain; say what is done and what is left), or when it needs a decision the owner hasn't made.
+- Otherwise commit and push straight to `main`; no pull requests. Run the local checks for what you changed first (`DEVELOPMENT.md` → Validation), then `git pull --rebase origin main` and push. Never force-push `main` or rewrite other agents' commits.
 - Never put literal CI-skip directives in commit messages, even to explain them.
 - Pushes to `main` run `Native CI` (about 5 minutes; up to ~15 with cold caches) and Cloudflare `Workers Builds: findanything`. Don't start `Native CI` manually for routine changes. Find the runs for your pushed `SHA` with `gh run list --repo joswayski/findanything --commit "$SHA"` and watch them with `gh run watch <id> --exit-status`.
 - Deployment is automatic; there is no `joswayski/infrastructure` deploy workflow for this repository. After pushing, confirm what changed shipped and report it:
