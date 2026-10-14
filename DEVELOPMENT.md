@@ -126,16 +126,43 @@ The script refuses an existing staging directory. It does not install or publish
 
 Each target has a distinct package ID and channel: `preview-osx-arm64`, `preview-osx-x64`, `preview-win-x64`, `preview-linux-x64`. Never combine architectures in one feed. All `releases.<channel>.json` files and their referenced `.nupkg` assets are published together into one GitHub prerelease. The SDK considers the ten newest GitHub releases; do not publish unrelated releases that displace all native feeds.
 
-**Trust boundary:** HTTPS/GitHub repository release permissions protect the feed. Velopack verifies package size/hash, but those hashes are not independent publisher signatures. macOS packages must be Developer ID signed/notarized; Windows uses Authenticode. Linux Velopack packages have no independent publisher signature. Protect release permissions and use the `native-release` GitHub environment; a signed-feed trust root would be a separate hardening project.
+**Trust boundary:** HTTPS/GitHub repository release permissions protect the feed. Velopack verifies package size/hash, but those hashes are not independent publisher signatures. macOS packages must be Developer ID signed/notarized; Windows uses Authenticode. Linux Velopack packages have no independent publisher signature. Protect release permissions; a signed-feed trust root would be a separate hardening project.
 
-### Enablement gate (not enabled by this migration)
+### Publishing
 
-1. Configure the `native-release` GitHub environment, restrict it to trusted `main`, and set the signing secrets through GitHub's secret UI (never commit values): `APPLE_CERTIFICATES_BASE64` (P12 with Developer ID Application **and Installer** identities), `APPLE_CERTIFICATES_PASSWORD`, `APPLE_API_KEY_BASE64` (App Store Connect P8), `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, `WINDOWS_CERTIFICATE_BASE64`, `WINDOWS_CERTIFICATE_PASSWORD`. Hardware-backed Windows identities may require replacing the PFX import with your signing provider.
-2. Set nonsecret environment variables `APPLE_APP_IDENTITY` and `APPLE_INSTALLER_IDENTITY` to the exact certificate names. `package.py --signed` uses those identities/notary profile on macOS and `WINDOWS_CERT_THUMBPRINT` from the imported Windows certificate. Never distribute the unsigned local test artifacts as trusted releases.
-3. On disposable macOS/Windows/X11/Wayland profiles, verify discovery, launch failures, keyboard/IME, accessibility, light/dark, hide/reopen and mixed-DPI behavior. Install version A then deliver version B using a disposable feed/package identity: verify automatic download, no forced mid-search restart, next-launch and explicit-restart application, offline retry, corrupt/missing package rejection, unchanged learned preferences, and recovery by reinstalling a previous package. Neither fixture tests nor compilation close this gate.
-4. Only after acceptance, set the **repository variable** `NATIVE_RELEASES_ENABLED=true`. The release workflow then reacts to successful `Native CI` runs on `main`, signs/packages all four targets and publishes one Preview (`0.2.<CI run number>`). It creates a draft and uploads every asset before exposing any feed. There is no stable release channel. An interrupted upload leaves a draft; inspect/delete that draft before rerunning rather than uploading a partial public feed.
+Every push to `main` that changes the native apps (`apps/native`, `crates`,
+Cargo files) runs **Native Preview release**, which packages all four targets
+and publishes one Preview (`0.2.<run number>`) that installed apps update to.
+Native CI runs alongside and does not block it. It creates a draft and uploads
+every asset before exposing any feed. There is no stable release channel. An
+interrupted upload leaves a draft; delete that draft before rerunning rather than
+uploading a partial public feed.
 
-GitHub signing secrets and release-environment access could not be inspected from the development orb. No credentials, repository variables, release environments, releases, or installed applications are changed by the source migration itself. Existing Tauri installations never shipped an updater: users must quit that app and install a native package once. Future native versions use the updater above.
+Each platform is signed when its signing material is configured and published
+unsigned otherwise (Linux packages are never signed):
+
+- **macOS:** repository secrets `APPLE_CERTIFICATES_BASE64` (P12 holding the
+  Developer ID Application **and** Developer ID Installer identities, both from
+  the one Apple Developer membership that already signs Caper and Captures),
+  `APPLE_CERTIFICATES_PASSWORD`, `APPLE_API_KEY_BASE64` (App Store Connect P8),
+  `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, plus repository variables
+  `APPLE_APP_IDENTITY` and `APPLE_INSTALLER_IDENTITY` (exact certificate names).
+- **Windows:** `WINDOWS_CERTIFICATE_BASE64` and `WINDOWS_CERTIFICATE_PASSWORD`
+  (an Authenticode PFX; hardware-backed identities need a different import).
+
+`package.py --signed` uses those identities and notary profile on macOS and
+`WINDOWS_CERT_THUMBPRINT` from the imported Windows certificate. Unsigned
+macOS builds open once with right-click > Open (or Open Anyway in Privacy &
+Security); unsigned Windows installers show SmartScreen's More info > Run anyway.
+
+Platform acceptance still matters before telling people to install: on
+disposable macOS/Windows/X11/Wayland profiles, verify discovery, launch failures,
+keyboard/IME, accessibility, light/dark, hide/reopen and mixed-DPI behavior,
+and the A-to-B update path (automatic download, no forced mid-search restart,
+next-launch and explicit-restart application, offline retry, corrupt/missing
+package rejection, unchanged learned preferences, recovery by reinstalling).
+
+Existing Tauri installations never shipped an updater: users must quit that app and install a native package once. Future native versions use the updater above.
 
 ## Website preview and deployment
 

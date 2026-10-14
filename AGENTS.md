@@ -14,6 +14,6 @@
 - Pushes to `main` run `Native CI` (about 5 minutes; up to ~15 with cold caches) and Cloudflare `Workers Builds: findanything`. Don't start `Native CI` manually for routine changes. Find the runs for your pushed `SHA` with `gh run list --repo joswayski/findanything --commit "$SHA"` and watch them with `gh run watch <id> --exit-status`.
 - Deployment is automatic; there is no `joswayski/infrastructure` deploy workflow for this repository. After pushing, confirm what changed shipped and report it:
   1. Website (`apps/web`): Cloudflare Workers Builds deploys `main` on push; check `gh api repos/joswayski/findanything/commits/$SHA/check-runs --jq '.check_runs[] | select(.app.slug == "cloudflare-workers-and-pages") | .name + " " + .conclusion'`. `npm run deploy:web` is the manual fallback.
-  2. Native clients: `Native Preview release` runs after a successful push `Native CI` and publishes only while the repository variable `NATIVE_RELEASES_ENABLED` is `true` (otherwise it is skipped). Never enable it or change signing secrets without the owner (see `DEVELOPMENT.md` → Enablement gate).
+  2. Native clients: pushes that change `apps/native`, `crates` or Cargo files run `Native Preview release`, which publishes a Preview that installed apps update to (signed per platform once signing is configured; see `DEVELOPMENT.md` → Publishing). Don't change signing secrets without the owner.
 - If `Native CI`, Workers Builds or a release fails, fix it forward with another commit.
-- Still ask the owner first for anything irreversible: deleting releases, data or infrastructure, rotating secrets, or enabling signed releases.
+- Still ask the owner first for anything irreversible: deleting releases, data or infrastructure, or rotating secrets.

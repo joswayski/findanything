@@ -1,9 +1,22 @@
 name: Native Preview release
+
+# Every push to main that changes the native apps publishes a Preview that
+# installed apps update to: main is production. Tests run separately in Native CI
+# and do not block it. Each platform is signed when its signing material is
+# configured (macOS: APPLE_* secrets and identity variables; Windows:
+# WINDOWS_CERTIFICATE_*) and published unsigned otherwise, like the other apps.
+# One release runs at a time; the newest waiting push replaces older ones.
 on:
-  workflow_run:
-    workflows: [Native CI]
+  push:
     branches: [main]
-    types: [completed]
+    paths:
+      - apps/native/**
+      - '!apps/native/**/*.md'
+      - crates/**
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/native-release.yml
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -11,9 +24,6 @@ concurrency:
   cancel-in-progress: false
 jobs:
   package:
-    # Enable only after signed two-version installed-update acceptance on every OS.
-    if: vars.NATIVE_RELEASES_ENABLED == 'true' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
-    environment: native-release
     strategy:
       fail-fast: false
       matrix:
@@ -21,8 +31,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: '0.12.23'
@@ -40,8 +48,23 @@ jobs:
         run: cargo build --release --locked -p findanything-windows
       - if: runner.os == 'macOS'
         run: bash apps/native/macos/build.sh
+      - name: Check for signing material
+        id: signing
+        shell: bash
+        env:
+          OS: ${{ runner.os }}
+          HAS_APPLE: ${{ secrets.APPLE_CERTIFICATES_BASE64 != '' && secrets.APPLE_API_KEY_BASE64 != '' && vars.APPLE_APP_IDENTITY != '' && vars.APPLE_INSTALLER_IDENTITY != '' }}
+          HAS_WINDOWS: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 != '' }}
+        run: |
+          signed=false
+          [[ "$OS" == macOS && "$HAS_APPLE" == true ]] && signed=true
+          [[ "$OS" == Windows && "$HAS_WINDOWS" == true ]] && signed=true
+          echo "signed=$signed" >> "$GITHUB_OUTPUT"
+          if [[ "$signed" == false && "$OS" != Linux ]]; then
+            echo "::notice::No $OS signing material is configured; publishing this platform unsigned."
+          fi
       - name: Import Apple signing identities and notarization profile
-        if: runner.os == 'macOS'
+        if: steps.signing.outputs.signed == 'true' && runner.os == 'macOS'
         env:
           P12_BASE64: ${{ secrets.APPLE_CERTIFICATES_BASE64 }}
           P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATES_PASSWORD }}
@@ -50,7 +73,6 @@ jobs:
           API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           set -euo pipefail
-          test -n "$P12_BASE64" && test -n "$API_KEY_BASE64"
           KEYCHAIN="$RUNNER_TEMP/findanything.keychain-db"
           PASSWORD="$(openssl rand -hex 32)"
           echo "::add-mask::$PASSWORD"
@@ -65,7 +87,7 @@ jobs:
           xcrun notarytool store-credentials findanything-release --key "$RUNNER_TEMP/notary.p8" --key-id "$API_KEY_ID" --issuer "$API_ISSUER"
           rm "$RUNNER_TEMP/certificates.p12" "$RUNNER_TEMP/notary.p8"
       - name: Import Windows signing certificate
-        if: runner.os == 'Windows'
+        if: steps.signing.outputs.signed == 'true' && runner.os == 'Windows'
         env:
           CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
           PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -78,22 +100,26 @@ jobs:
           $cert = Import-PfxCertificate -FilePath $pfx -Password $password -CertStoreLocation Cert:\CurrentUser\My
           "WINDOWS_CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
           Remove-Item $pfx
-      - name: Package signed native Preview
+      - name: Package native Preview
+        shell: bash
         env:
           APPLE_APP_IDENTITY: ${{ vars.APPLE_APP_IDENTITY }}
           APPLE_INSTALLER_IDENTITY: ${{ vars.APPLE_INSTALLER_IDENTITY }}
-          RELEASE_NUMBER: ${{ github.event.workflow_run.run_number }}
-        run: uv run --no-project python apps/native/package.py --signed --version 0.2.${{ env.RELEASE_NUMBER }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          set -euo pipefail
+          args=(--version "0.2.$GITHUB_RUN_NUMBER")
+          [[ "$SIGNED" != true ]] || args+=(--signed)
+          uv run --no-project python apps/native/package.py "${args[@]}"
       - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.os }}
           path: releases/*
           if-no-files-found: error
-      - if: always() && runner.os == 'macOS'
+      - if: always() && steps.signing.outputs.signed == 'true' && runner.os == 'macOS'
         run: security delete-keychain "$RUNNER_TEMP/findanything.keychain-db" || true
   publish:
     needs: package
-    environment: native-release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -107,11 +133,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
-          VERSION: 0.2.${{ github.event.workflow_run.run_number }}
+          SHA: ${{ github.sha }}
+          VERSION: 0.2.${{ github.run_number }}
         run: |
           set -euo pipefail
           TAG="native-v$VERSION"
-          gh release create "$TAG" --target "$SHA" --draft --prerelease --title "Native Preview $VERSION" --notes "Experimental native build. Automatic updates apply on next launch. See DEVELOPMENT.md for platform limits."
+          gh release create "$TAG" --target "$SHA" --draft --prerelease --title "Native Preview $VERSION" --notes "Experimental native build from $SHA. Automatic updates apply on next launch. Builds without configured signing are unsigned: on macOS, open the app once with right-click > Open (or System Settings > Privacy & Security > Open Anyway); on Windows, choose More info > Run anyway. See DEVELOPMENT.md for platform limits."
           gh release upload "$TAG" releases/*
           gh release edit "$TAG" --draft=false --prerelease --latest=false

@@ -26,7 +26,7 @@ separate.
 
 Use **⌘⇧Space** on macOS or **Ctrl+Shift+Space** on Windows/X11. On Wayland, configure a desktop shortcut to launch the executable; Escape minimizes rather than making the app unreachable. macOS has a menu-bar entry; Windows/Linux also retain a normal taskbar window.
 
-Native packages are wired to check/download updates automatically and install them on the next launch, with a **Restart to update** action. Publishing is gated on signing setup and platform acceptance. Existing Tauri installations have no updater and need a **one-time native installation**; the local learned-preference database keeps the same location and schema. Model downloads and update requests require network access; searches and usage history are not uploaded.
+Native packages are wired to check/download updates automatically and install them on the next launch, with a **Restart to update** action. Every change to the apps on `main` publishes a Preview (unsigned until signing is configured). Existing Tauri installations have no updater and need a **one-time native installation**; the local learned-preference database keeps the same location and schema. Model downloads and update requests require network access; searches and usage history are not uploaded.
 
 Current limits: Windows Store-only apps without Start Menu shortcuts are not indexed. Windows/Linux filename search covers standard personal folders, not the whole disk. The shared frontend requires wgpu graphics (GPU-backed or a supported software implementation). Native validation is still in progress; physical screen-reader, IME, mixed-DPI, Windows, and Wayland acceptance remains open. See [development and release notes](DEVELOPMENT.md).
 
